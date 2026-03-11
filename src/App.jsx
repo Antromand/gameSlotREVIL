@@ -6,20 +6,27 @@ import {
   SLOT_PROFILES
 } from "./math/slotConfig.js";
 import {
+  buyBonusFromProfile,
   createPreviewGrid,
   getPaytableRows,
   getProfile,
   spinFromProfile
 } from "./math/engine.js";
+import { t } from "./i18n/index.js";
 
 const SPEED_OPTIONS = [
-  { id: "standard", label: "⏱", spinBase: 2200, spinStep: 720, previewStep: 44, settleStep: 132, stripStepMs: 1120 },
-  { id: "fast", label: "⚡", spinBase: 700, spinStep: 220, previewStep: 30, settleStep: 88, stripStepMs: 280 },
-  { id: "hyper", label: "🚀", spinBase: 180, spinStep: 68, previewStep: 16, settleStep: 40, stripStepMs: 280 }
+  { id: "standard", label: "1x", spinBase: 2200, spinStep: 720, previewStep: 44, settleStep: 132, stripStepMs: 1120 },
+  { id: "fast", label: "2x", spinBase: 700, spinStep: 220, previewStep: 30, settleStep: 88, stripStepMs: 280 },
+  { id: "hyper", label: "3x", spinBase: 180, spinStep: 68, previewStep: 16, settleStep: 40, stripStepMs: 280 }
 ];
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 const BIG_WIN_OPTIONS = [0, 10, 25, 50, 100];
+const BONUS_BUY_OPTIONS = [
+  { scatterCount: 3, priceMultiplier: 100 },
+  { scatterCount: 4, priceMultiplier: 200 },
+  { scatterCount: 5, priceMultiplier: 500 }
+];
 
 function formatNumber(value) {
   return new Intl.NumberFormat("ru-RU").format(value);
@@ -119,6 +126,34 @@ function formatRtpValue(value) {
   return value.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
 }
 
+function getFeatureSummary(plannedSpin, bonusInfo) {
+  if ((plannedSpin.respinCount ?? 0) <= 0) {
+    return bonusInfo;
+  }
+
+  return t("feature.respinSummary", {
+    count: plannedSpin.respinCount,
+    win: formatNumber(plannedSpin.respinWin ?? 0),
+    bonusInfo
+  });
+}
+
+function renderFormattedRuleText(text) {
+  return text.split("\n").map((line, index) => {
+    const trimmedLine = line.trim();
+    const isHeading = /^(3|4|5) scatter:$/.test(trimmedLine);
+
+    return (
+      <span
+        className={`formatted-rule-line${isHeading ? " is-heading" : ""}`}
+        key={`formatted-rule-${index}-${trimmedLine}`}
+      >
+        {trimmedLine}
+      </span>
+    );
+  });
+}
+
 function SlotApp() {
   const [profileId, setProfileId] = useState(DEFAULT_PROFILE_ID);
   const [balance, setBalance] = useState(DEFAULT_BALANCE);
@@ -135,21 +170,26 @@ function SlotApp() {
   const [autoSpinsRemaining, setAutoSpinsRemaining] = useState(0);
   const [stopOnBonus, setStopOnBonus] = useState(true);
   const [stopOnBigWin, setStopOnBigWin] = useState(25);
-  const [lastFeatureText, setLastFeatureText] = useState("3+ scatter запускают bonus free spins.");
-  const [bonusBanner, setBonusBanner] = useState("Bonus не активирован.");
+  const [lastFeatureText, setLastFeatureText] = useState(t("feature.defaultHint"));
+  const [bonusBanner, setBonusBanner] = useState(t("feature.bonusInactive"));
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showBuyBonusModal, setShowBuyBonusModal] = useState(false);
   const [spinningColumns, setSpinningColumns] = useState([]);
   const [settlingColumns, setSettlingColumns] = useState([]);
   const [spinningStripColumns, setSpinningStripColumns] = useState([]);
   const [spinningStripStyles, setSpinningStripStyles] = useState([]);
-  const [statusText, setStatusText] = useState("Готово к игре");
-  const [roundSummary, setRoundSummary] = useState("Сделайте первый спин");
+  const [stickySpecialOverlays, setStickySpecialOverlays] = useState([]);
+  const [activeBonusState, setActiveBonusState] = useState(null);
+  const [bonusEventState, setBonusEventState] = useState(null);
+  const [statusText, setStatusText] = useState(t("status.ready"));
+  const [roundSummary, setRoundSummary] = useState(t("status.firstSpin"));
   const timersRef = useRef([]);
   const intervalsRef = useRef([]);
   const autoSpinQueuedRef = useRef(false);
   const autoSpinStopRequestedRef = useRef(false);
   const audioContextRef = useRef(null);
   const teasePlayedColumnsRef = useRef(new Set());
+  const displayGridRef = useRef(displayGrid);
 
   const profile = getProfile(profileId);
   const bet = BET_OPTIONS[currentBetIndex];
@@ -160,6 +200,10 @@ function SlotApp() {
   const spinVisualStyle = getSpinVisualStyle(currentSpinSpeedOption.id);
   const sessionRtp = totalBets === 0 ? 0 : (totalWins / totalBets) * 100;
   const totalWays = waysWins.reduce((sum, entry) => sum + entry.ways, 0);
+
+  useEffect(() => {
+    displayGridRef.current = displayGrid;
+  }, [displayGrid]);
 
   useEffect(() => {
     return () => {
@@ -240,22 +284,32 @@ function SlotApp() {
     setAutoSpinsRemaining(0);
     setStopOnBonus(true);
     setStopOnBigWin(25);
-    setLastFeatureText("3+ scatter запускают bonus free spins.");
-    setBonusBanner("Bonus не активирован.");
+    setLastFeatureText(t("feature.defaultHint"));
+    setBonusBanner(t("feature.bonusInactive"));
     setShowSettingsModal(false);
+    setShowBuyBonusModal(false);
     autoSpinQueuedRef.current = false;
     autoSpinStopRequestedRef.current = false;
     setSpinningColumns([]);
     setSettlingColumns([]);
     setSpinningStripColumns([]);
     setSpinningStripStyles([]);
+    setStickySpecialOverlays([]);
+    setActiveBonusState(null);
+    setBonusEventState(null);
     setDisplayGrid(createPreviewGrid(nextProfileId));
-    setStatusText("Готово к игре");
-    setRoundSummary("Сделайте первый спин");
+    setStatusText(t("status.ready"));
+    setRoundSummary(t("status.firstSpin"));
   }
   function openSettingsModal() {
     if (!spinning) {
       setShowSettingsModal(true);
+    }
+  }
+
+  function openBuyBonusModal() {
+    if (!spinning) {
+      setShowBuyBonusModal(true);
     }
   }
 
@@ -270,8 +324,8 @@ function SlotApp() {
       autoSpinQueuedRef.current = false;
       autoSpinStopRequestedRef.current = true;
       setAutoSpinsRemaining(0);
-      setStatusText(spinning ? "Остановка автоигры..." : "Автоигра остановлена");
-      setRoundSummary(spinning ? "Текущий спин будет доигран" : "Ручной режим");
+      setStatusText(spinning ? t("status.stoppingAuto") : t("status.autoStopped"));
+      setRoundSummary(spinning ? t("status.currentSpinWillFinish") : t("status.manualMode"));
       return;
     }
 
@@ -280,14 +334,14 @@ function SlotApp() {
     }
 
     if (balance < bet) {
-      setStatusText("Недостаточно средств для автоигры");
+      setStatusText(t("status.noFundsAuto"));
       return;
     }
 
     autoSpinStopRequestedRef.current = false;
     setAutoSpinsRemaining(autoSpinCount);
-    setStatusText("Автоигра запущена");
-    setRoundSummary(`Серия на ${autoSpinCount} спинов`);
+      setStatusText(t("status.autoStarted"));
+      setRoundSummary(t("status.autoSeries", { count: autoSpinCount }));
   }
 
   useEffect(() => {
@@ -297,8 +351,8 @@ function SlotApp() {
 
     if (balance < bet) {
       setAutoSpinsRemaining(0);
-      setStatusText("Автоигра остановлена: недостаточно средств");
-      setRoundSummary("Пополните баланс или уменьшите ставку");
+      setStatusText(t("status.autoStoppedNoFunds"));
+      setRoundSummary(t("status.topUpOrLowerBet"));
       return;
     }
 
@@ -320,7 +374,7 @@ function SlotApp() {
     }
 
     if (balance < bet) {
-      setStatusText("Недостаточно средств для спина");
+      setStatusText(t("status.noFundsSpin"));
       return;
     }
 
@@ -333,23 +387,228 @@ function SlotApp() {
     setTotalBets((value) => value + bet);
     setLastWin(0);
     setWaysWins([]);
-    setLastFeatureText("Базовый спин в процессе.");
-    setBonusBanner("Ожидание bonus-результата.");
+    setLastFeatureText(t("feature.baseSpinInProgress"));
+    setBonusBanner(t("feature.bonusPending"));
     setSpinningColumns([0, 1, 2, 3, 4]);
     setSettlingColumns([]);
+    setStickySpecialOverlays([]);
+    setActiveBonusState(null);
+    setBonusEventState(null);
     teasePlayedColumnsRef.current = new Set();
-    setStatusText("Барабаны вращаются...");
+    setStatusText(t("status.reelsSpinning"));
     setRoundSummary(
       autoSpinsRemaining > 0
-        ? `Автоигра: осталось ${autoSpinsRemaining} • ${nextSpinSpeedOption.label}`
-        : `${profile.label} • RTP ${formatRtpValue(profile.targetRtp)}% • ${nextSpinSpeedOption.label}`
+        ? t("status.autoRemainingWithSpeed", { count: autoSpinsRemaining, speed: nextSpinSpeedOption.label })
+        : t("status.profileWithRtpAndSpeed", {
+            profile: profile.label,
+            rtp: formatRtpValue(profile.targetRtp),
+            speed: nextSpinSpeedOption.label
+          })
     );
 
-    startSpinAnimation(plannedSpin, nextSpinSpeedOption);
+    startSpinSequence(plannedSpin, nextSpinSpeedOption);
   }
 
-  function startSpinAnimation(plannedSpin, spinOption) {
+  function handleBuyBonus(scatterCount, priceMultiplier) {
+    if (spinning) {
+      return;
+    }
+
+    const purchaseCost = bet * priceMultiplier;
+
+    if (balance < purchaseCost) {
+      setStatusText(t("status.noFundsBonusBuy"));
+      return;
+    }
+
+    const nextSpinSpeedOption = speedOption;
+    const plannedSpin = buyBonusFromProfile(profileId, bet, scatterCount);
+
+    setShowBuyBonusModal(false);
+    setActiveSpinSpeedId(nextSpinSpeedOption.id);
+    setSpinning(true);
+    setBalance((value) => value - purchaseCost);
+    setTotalBets((value) => value + purchaseCost);
+    setLastWin(0);
+    setWaysWins([]);
+    setLastFeatureText(t("feature.bonusPending"));
+    setBonusBanner(t("feature.bonusPending"));
+    setSpinningColumns([0, 1, 2, 3, 4]);
+    setSettlingColumns([]);
+    setStickySpecialOverlays([]);
+    setActiveBonusState(null);
+    teasePlayedColumnsRef.current = new Set();
+    setStatusText(t("status.bonusBuyStarted", { scatterCount }));
+    setRoundSummary(t("status.bonusBuySummary", {
+      cost: formatNumber(purchaseCost),
+      spins: plannedSpin.bonusAwardedSpins
+    }));
+
+    startSpinSequence(plannedSpin, nextSpinSpeedOption);
+  }
+
+  function startSpinSequence(plannedSpin, spinOption) {
+    const rounds = [plannedSpin.baseRound, ...(plannedSpin.respinRounds ?? [])].filter(Boolean);
+    const bonusRounds = plannedSpin.bonusGame?.rounds ?? [];
+
+    const runBonusRound = (bonusRoundIndex) => {
+      const round = bonusRounds[bonusRoundIndex];
+
+      if (!round) {
+        finalizeSpin(plannedSpin);
+        return;
+      }
+
+      setWaysWins([]);
+      setStickySpecialOverlays(
+        (round.startingStickyPositions ?? []).map((position) => ({
+          ...position,
+          symbol: round.grid[position.column][position.row]
+        }))
+      );
+
+      startSpinAnimation(round, spinOption, () => {
+        const nextRoundNumber = bonusRoundIndex + 1;
+        const totalBonusRounds = bonusRounds.length;
+        const stickyWilds = round.stickyPositions?.filter((entry) => entry.symbolId === "wild").length ?? 0;
+        const accumulatedBonusWin = bonusRounds
+          .slice(0, nextRoundNumber)
+          .reduce((sum, bonusRound) => sum + (bonusRound.totalWin ?? 0), 0);
+        const hasBonusEvent = round.extraSpinsAwarded > 0 || round.bonusUpgraded;
+
+        setActiveBonusState({
+          scatterCount: round.bonusLevel ?? plannedSpin.bonusGame?.triggerScatterCount ?? plannedSpin.scatterCount,
+          totalSpins: totalBonusRounds,
+          remainingSpins: totalBonusRounds - nextRoundNumber,
+          stickyWilds,
+          maxStickyWilds: round.maxStickyWilds ?? plannedSpin.bonusGame?.maxStickyWilds ?? stickyWilds,
+          maxMultiplier: round.maxMultiplier ?? plannedSpin.bonusGame?.maxMultiplier ?? 1,
+          totalWin: accumulatedBonusWin,
+          spinWin: round.totalWin
+        });
+        setBonusEventState(
+          hasBonusEvent
+            ? {
+                extraSpins: round.extraSpinsAwarded ?? 0,
+                upgradedToLevel: round.bonusUpgraded ? round.nextBonusLevel : null
+              }
+            : null
+        );
+
+        if (hasBonusEvent) {
+          const clearBonusEventTimer = window.setTimeout(() => {
+            setBonusEventState(null);
+          }, 1200);
+          timersRef.current.push(clearBonusEventTimer);
+        }
+
+        setLastWin(round.totalWin);
+        setLastFeatureText(t("feature.bonusRoundResult", {
+          round: nextRoundNumber,
+          total: totalBonusRounds,
+          win: formatNumber(round.totalWin)
+        }));
+        setStatusText(t("status.bonusSpinFinished", { round: nextRoundNumber }));
+        setRoundSummary(t("status.bonusSpinSummary", {
+          stickyWilds,
+          maxStickyWilds: plannedSpin.bonusGame?.maxStickyWilds ?? stickyWilds,
+          win: formatNumber(round.totalWin)
+        }));
+
+        if (bonusRoundIndex < bonusRounds.length - 1) {
+          const nextBonusTimer = window.setTimeout(() => runBonusRound(bonusRoundIndex + 1), 260);
+          timersRef.current.push(nextBonusTimer);
+          return;
+        }
+
+        finalizeSpin(plannedSpin);
+      });
+    };
+
+    const runRound = (roundIndex) => {
+      const round = rounds[roundIndex];
+      setWaysWins([]);
+      setStickySpecialOverlays(
+        (round.startingStickyPositions ?? []).map((position) => ({
+          ...position,
+          symbol: round.grid[position.column][position.row]
+        }))
+      );
+      startSpinAnimation(round, spinOption, () => {
+        if (roundIndex < rounds.length - 1) {
+          const nextRoundNumber = roundIndex + 1;
+          setLastWin(round.totalWin);
+          setLastFeatureText(t("feature.respinRoundResult", {
+            round: nextRoundNumber,
+            total: plannedSpin.respinCount,
+            win: formatNumber(round.totalWin)
+          }));
+          setStatusText(t("status.respinFinished", { round: nextRoundNumber }));
+          setRoundSummary(t("status.stickyRespinWin", { win: formatNumber(round.totalWin) }));
+          const respinTimer = window.setTimeout(() => runRound(roundIndex + 1), 260);
+          timersRef.current.push(respinTimer);
+          return;
+        }
+
+        if (bonusRounds.length > 0) {
+          setLastWin(0);
+          setWaysWins([]);
+          setBonusEventState(null);
+          setActiveBonusState({
+            scatterCount: plannedSpin.bonusGame?.triggerScatterCount ?? plannedSpin.scatterCount,
+            totalSpins: bonusRounds.length,
+            remainingSpins: bonusRounds.length,
+            stickyWilds: 0,
+            maxStickyWilds: plannedSpin.bonusGame?.rounds?.[0]?.maxStickyWilds ?? plannedSpin.bonusGame?.maxStickyWilds ?? 0,
+            maxMultiplier: plannedSpin.bonusGame?.rounds?.[0]?.maxMultiplier ?? plannedSpin.bonusGame?.maxMultiplier ?? 1,
+            totalWin: 0,
+            spinWin: 0
+          });
+          setStatusText(t("status.bonusStarted"));
+          setRoundSummary(t("status.bonusIntro", {
+            scatterCount: plannedSpin.bonusGame?.triggerScatterCount ?? plannedSpin.scatterCount,
+            spins: plannedSpin.bonusAwardedSpins
+          }));
+          const bonusTimer = window.setTimeout(() => runBonusRound(0), 260);
+          timersRef.current.push(bonusTimer);
+          return;
+        }
+
+        finalizeSpin(plannedSpin);
+      });
+    };
+
+    if (rounds.length === 0 && bonusRounds.length > 0) {
+      setLastWin(0);
+      setWaysWins([]);
+      setBonusEventState(null);
+      setActiveBonusState({
+        scatterCount: plannedSpin.bonusGame?.triggerScatterCount ?? plannedSpin.scatterCount,
+        totalSpins: bonusRounds.length,
+        remainingSpins: bonusRounds.length,
+        stickyWilds: 0,
+        maxStickyWilds: plannedSpin.bonusGame?.rounds?.[0]?.maxStickyWilds ?? plannedSpin.bonusGame?.maxStickyWilds ?? 0,
+        maxMultiplier: plannedSpin.bonusGame?.rounds?.[0]?.maxMultiplier ?? plannedSpin.bonusGame?.maxMultiplier ?? 1,
+        totalWin: 0,
+        spinWin: 0
+      });
+      setStatusText(t("status.bonusStarted"));
+      setRoundSummary(t("status.bonusIntro", {
+        scatterCount: plannedSpin.bonusGame?.triggerScatterCount ?? plannedSpin.scatterCount,
+        spins: plannedSpin.bonusAwardedSpins
+      }));
+      const bonusTimer = window.setTimeout(() => runBonusRound(0), 260);
+      timersRef.current.push(bonusTimer);
+      return;
+    }
+
+    runRound(0);
+  }
+
+  function startSpinAnimation(plannedSpin, spinOption, onComplete) {
     clearSpinTimers();
+    setSpinningColumns(Array.from({ length: plannedSpin.grid.length }, (_, index) => index));
+    setSettlingColumns([]);
     const nextStripColumns = [];
     const nextStripStyles = [];
     const animatedStripStyles = [];
@@ -361,25 +620,26 @@ function SlotApp() {
         { length: Math.max(6, Math.ceil(totalDuration / spinOption.stripStepMs)) },
         () => createPreviewGrid(profileId)[column]
       );
-      const stripItems = createSpinningColumnItems(displayGrid[column], plannedSpin.grid[column], fillerColumns);
+      const stripItems = createSpinningColumnItems(displayGridRef.current[column], plannedSpin.grid[column], fillerColumns);
       const offsetSteps = Math.max(0, stripItems.length - plannedSpin.grid[column].length);
 
       nextStripColumns[column] = stripItems;
       nextStripStyles[column] = {
         "--reel-stop-distance": `calc(-${offsetSteps} * (var(--symbol-height) + var(--reel-gap)))`,
         transform: "translate3d(0, 0, 0)",
-        transition: "none"
+        animation: "none"
       };
       animatedStripStyles[column] = {
         "--reel-stop-distance": `calc(-${offsetSteps} * (var(--symbol-height) + var(--reel-gap)))`,
         transform: "translate3d(0, var(--reel-stop-distance), 0)",
-        transition: `transform ${totalDuration}ms linear`
+        animation: `reelSpinTrackAccelerated ${totalDuration}ms both`
       };
 
       const timer = window.setTimeout(() => {
         setDisplayGrid((current) => {
           const nextGrid = current.map((items) => [...items]);
           nextGrid[column] = plannedSpin.grid[column];
+          displayGridRef.current = nextGrid;
           maybePlayScatterTease(nextGrid, column);
           return nextGrid;
         });
@@ -392,7 +652,7 @@ function SlotApp() {
         timersRef.current.push(settleTimer);
 
         if (column === plannedSpin.grid.length - 1) {
-          finalizeSpin(plannedSpin);
+          onComplete();
         }
       }, totalDuration);
 
@@ -410,14 +670,29 @@ function SlotApp() {
   function finalizeSpin(plannedSpin) {
     const hadAutoPlay = autoSpinsRemaining > 0;
     const nextAutoSpinsRemaining = hadAutoPlay ? autoSpinsRemaining - 1 : 0;
+    const bonusGame = plannedSpin.bonusGame;
     const bonusInfo = plannedSpin.bonusTriggered
-      ? `Scatter ${plannedSpin.scatterCount}: bonus на ${plannedSpin.bonusAwardedSpins} spins, bonus win ${formatNumber(plannedSpin.bonusGame?.totalWin ?? 0)}`
+      ? t("status.scatterBonusInfo", {
+          count: plannedSpin.scatterCount,
+          spins: plannedSpin.bonusAwardedSpins,
+          win: formatNumber(bonusGame?.totalWin ?? 0)
+        })
       : plannedSpin.scatterCount >= 3
-        ? `Scatter ${plannedSpin.scatterCount}: выплата ${formatNumber(plannedSpin.scatterWin)}`
-        : "Bonus не активирован.";
+        ? t("status.scatterPayoutInfo", {
+            count: plannedSpin.scatterCount,
+            win: formatNumber(plannedSpin.scatterWin)
+          })
+        : t("feature.bonusInactive");
     const bonusBannerText = plannedSpin.bonusTriggered
-      ? `Free spins: ${plannedSpin.bonusAwardedSpins}, retrigger: ${plannedSpin.bonusGame?.retriggers ?? 0}, bonus win: ${formatNumber(plannedSpin.bonusGame?.totalWin ?? 0)}`
-      : "Bonus не активирован.";
+      ? t("status.bonusBanner", {
+          scatterCount: bonusGame?.triggerScatterCount ?? plannedSpin.scatterCount,
+          spins: plannedSpin.bonusAwardedSpins,
+          stickyWilds: bonusGame?.finalStickyWildCount ?? 0,
+          maxStickyWilds: bonusGame?.maxStickyWilds ?? 0,
+          maxMultiplier: bonusGame?.maxMultiplier ?? 1,
+          win: formatNumber(bonusGame?.totalWin ?? 0)
+        })
+      : t("feature.bonusInactive");
     const hitBigWin = stopOnBigWin > 0 && plannedSpin.totalWin >= bet * stopOnBigWin;
     const manualStopRequested = autoSpinStopRequestedRef.current;
     const stopAutoNow = hadAutoPlay && (
@@ -432,62 +707,83 @@ function SlotApp() {
     setBalance((value) => value + plannedSpin.totalWin);
     setTotalWins((value) => value + plannedSpin.totalWin);
     setWaysWins(plannedSpin.waysWins);
-    setLastFeatureText(bonusInfo);
+    setLastFeatureText(
+      plannedSpin.bonusTriggered
+        ? t("feature.bonusFeatureSummary", {
+            scatterCount: bonusGame?.triggerScatterCount ?? plannedSpin.scatterCount,
+            spins: plannedSpin.bonusAwardedSpins,
+            stickyWilds: bonusGame?.finalStickyWildCount ?? 0,
+            maxStickyWilds: bonusGame?.maxStickyWilds ?? 0,
+            maxMultiplier: bonusGame?.maxMultiplier ?? 1
+          })
+        : getFeatureSummary(plannedSpin, bonusInfo)
+    );
     setBonusBanner(bonusBannerText);
+    setStickySpecialOverlays([]);
     setSpinning(false);
     setSpinningStripColumns([]);
     setSpinningStripStyles([]);
+    setActiveBonusState(null);
+    setBonusEventState(null);
     setAutoSpinsRemaining(finalAutoSpinsRemaining);
     autoSpinStopRequestedRef.current = false;
 
     if (plannedSpin.totalWin > 0) {
       if (manualStopRequested) {
-        setStatusText("Автоигра остановлена");
-        setRoundSummary(`Серия остановлена вручную • выигрыш ${formatNumber(plannedSpin.totalWin)}`);
+        setStatusText(t("status.autoStopped"));
+        setRoundSummary(t("status.autoStoppedWin", { win: formatNumber(plannedSpin.totalWin) }));
         return;
       }
 
       if (hadAutoPlay && stopOnBonus && plannedSpin.bonusTriggered) {
-        setStatusText("Автоигра остановлена по bonus");
-        setRoundSummary(`Bonus trigger • free spins ${plannedSpin.bonusAwardedSpins}`);
+        setStatusText(t("status.autoStoppedByBonus"));
+        setRoundSummary(t("status.autoReachedBonus", { spins: plannedSpin.bonusAwardedSpins }));
         return;
       }
 
       if (hadAutoPlay && hitBigWin) {
-        setStatusText("Автоигра остановлена по big win");
-        setRoundSummary(`Выигрыш ${formatNumber(plannedSpin.totalWin)} >= ${stopOnBigWin}x ставки`);
+        setStatusText(t("status.autoStoppedByBigWin"));
+        setRoundSummary(t("status.bigWinThreshold", {
+          win: formatNumber(plannedSpin.totalWin),
+          threshold: stopOnBigWin
+        }));
         return;
       }
 
-      setStatusText(`Выигрыш ${plannedSpin.totalWin}`);
+      setStatusText(plannedSpin.bonusTriggered ? t("status.bonusCompleted") : t("status.winValue", { win: plannedSpin.totalWin }));
       setRoundSummary(
-        hadAutoPlay && finalAutoSpinsRemaining > 0
-          ? `${plannedSpin.totalWays} ways • осталось ${finalAutoSpinsRemaining} автоспинов`
-          : `${plannedSpin.totalWays} ways • ${plannedSpin.waysWins.length} комбинаций`
+        plannedSpin.bonusTriggered
+          ? t("status.bonusTotalWin", {
+              win: formatNumber(plannedSpin.bonusGame?.totalWin ?? 0),
+              spinWin: formatNumber(plannedSpin.finalDisplayRound?.totalWin ?? 0)
+            })
+          : hadAutoPlay && finalAutoSpinsRemaining > 0
+            ? t("status.waysAndAutospins", { ways: plannedSpin.totalWays, count: finalAutoSpinsRemaining })
+            : t("status.waysAndCombos", { ways: plannedSpin.totalWays, count: plannedSpin.waysWins.length })
       );
       return;
     }
 
     if (manualStopRequested) {
-      setStatusText("Автоигра остановлена");
-      setRoundSummary("Серия остановлена вручную");
+      setStatusText(t("status.autoStopped"));
+      setRoundSummary(t("status.autoStoppedNoWin"));
       return;
     }
 
     if (hadAutoPlay && finalAutoSpinsRemaining > 0) {
-      setStatusText("Автоигра продолжается");
-      setRoundSummary(`Без выигрыша • осталось ${finalAutoSpinsRemaining} автоспинов`);
+      setStatusText(t("status.autoContinues"));
+      setRoundSummary(t("status.noWinAutospinsLeft", { count: finalAutoSpinsRemaining }));
       return;
     }
 
     if (hadAutoPlay && finalAutoSpinsRemaining === 0) {
-      setStatusText("Автоигра завершена");
-      setRoundSummary("Комбинации 243 ways не сработали");
+      setStatusText(t("status.autoCompleted"));
+      setRoundSummary(t("status.use243Ways"));
       return;
     }
 
-    setStatusText("Без выигрыша");
-    setRoundSummary("Комбинации 243 ways не сработали");
+    setStatusText(t("status.noWin"));
+    setRoundSummary(t("status.use243Ways"));
   }
 
   const winningCells = new Set();
@@ -498,10 +794,16 @@ function SlotApp() {
   });
 
   const winSummaryText = waysWins.length === 0
-    ? (spinning ? "Идет анимация вращения барабанов." : "Пока нет выигрышных комбинаций.")
+    ? (spinning ? t("status.hiddenCombos") : t("status.noActiveCombos"))
     : waysWins
-        .map((entry) => `${entry.symbol.name}: ${entry.countLabel} на ${entry.reels} барабанах = ${entry.ways} ways, выплата ${entry.payout}`)
-        .join(" • ");
+        .map((entry) => t("status.waysLine", {
+          symbol: entry.symbol.name,
+          countLabel: entry.countLabel,
+          reels: entry.reels,
+          ways: entry.ways,
+          payout: entry.payout
+        }))
+        .join("\n");
 
   return (
     <main className="app-shell">
@@ -509,17 +811,62 @@ function SlotApp() {
         <header className="stage-header">
           <div>
             <p className="eyebrow">Prototype / Reel Strips</p>
-            <h1>Игровое поле</h1>
+            <h1>{t("ui.title")}</h1>
           </div>
         </header>
 
-        <section className="machine-frame" aria-label="Игровое поле слота" style={spinVisualStyle}>
+        <section className="machine-frame" aria-label={t("ui.machineAria")} style={spinVisualStyle}>
+            {activeBonusState ? (
+              <div className="bonus-badge" role="status" aria-live="polite">
+                <strong>{t("ui.bonusBadgeTitle", { scatterCount: activeBonusState.scatterCount })}</strong>
+                {bonusEventState ? (
+                  <div className="bonus-event-banner">
+                    {bonusEventState.upgradedToLevel ? (
+                      <span>{t("status.bonusUpgradeEvent", { level: bonusEventState.upgradedToLevel })}</span>
+                    ) : null}
+                    {bonusEventState.extraSpins > 0 ? (
+                      <span>{t("status.bonusExtraSpinsEvent", { spins: bonusEventState.extraSpins })}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+                <span>{t("ui.bonusBadgeSpins", {
+                  remaining: activeBonusState.remainingSpins,
+                  total: activeBonusState.totalSpins
+                })}</span>
+                <span>{t("ui.bonusBadgeWilds", {
+                  count: activeBonusState.stickyWilds,
+                  max: activeBonusState.maxStickyWilds,
+                  multiplier: activeBonusState.maxMultiplier
+                })}</span>
+                <span>{t("ui.bonusBadgeTotalWin", {
+                  win: formatNumber(activeBonusState.totalWin ?? 0)
+                })}</span>
+                <span>{t("ui.bonusBadgeSpinWin", {
+                  win: formatNumber(activeBonusState.spinWin ?? 0)
+                })}</span>
+              </div>
+            ) : null}
             <div className="reel-grid">
               {displayGrid.map((column, columnIndex) => (
                 <div
                   className={`reel-column${spinningColumns.includes(columnIndex) ? " is-spinning" : ""}${settlingColumns.includes(columnIndex) ? " is-settling" : ""}`}
                   key={`column-${columnIndex}`}
                 >
+                  {stickySpecialOverlays
+                    .filter((entry) => entry.column === columnIndex)
+                    .map((entry) => (
+                      <article
+                        className={`symbol-cell sticky-special-cell${entry.symbol.id === "scatter" ? " sticky-scatter-cell" : ""}`}
+                        key={`sticky-${entry.column}-${entry.row}`}
+                        style={{ top: `calc(${entry.row} * (var(--symbol-height) + var(--reel-gap)))` }}
+                      >
+                        <div className="symbol-face">
+                          <div className="symbol-icon">{entry.symbol.icon}</div>
+                          <div className="symbol-name">{entry.symbol.name}</div>
+                          {entry.symbol.multiplier ? <div className="symbol-multiplier">x{entry.symbol.multiplier}</div> : null}
+                        </div>
+                      </article>
+                    ))}
                   <div
                     className={`reel-strip${spinningColumns.includes(columnIndex) ? " is-spinning" : ""}${settlingColumns.includes(columnIndex) ? " is-settling" : ""}`}
                     style={
@@ -546,6 +893,7 @@ function SlotApp() {
                         <div className="symbol-face">
                           <div className="symbol-icon">{symbol.icon}</div>
                           <div className="symbol-name">{symbol.name}</div>
+                          {symbol.multiplier ? <div className="symbol-multiplier">x{symbol.multiplier}</div> : null}
                         </div>
                       </article>
                     );
@@ -558,22 +906,26 @@ function SlotApp() {
 
         <section className="under-reels-bar">
           <article className="top-stat">
-            <span>Баланс</span>
+            <span>{t("ui.balance")}</span>
             <strong>{formatNumber(balance)}</strong>
           </article>
           <article className="top-stat">
-            <span>Текущий выигрыш</span>
+            <span>{t("ui.lastWin")}</span>
             <strong>{formatNumber(lastWin)}</strong>
           </article>
           <article className="top-stat bonus-stat">
-            <span>Bonus / Free Spins</span>
+            <span>{t("ui.bonus")}</span>
             <strong>{bonusBanner}</strong>
           </article>
         </section>
 
         <section className="control-bar">
           <button className="round-button side-button" type="button" onClick={openSettingsModal}>
-            Правила
+            {t("ui.settings")}
+          </button>
+
+          <button className="round-button bonus-buy-button" type="button" onClick={openBuyBonusModal}>
+            {t("ui.buyBonus")}
           </button>
 
           <div className="center-controls">
@@ -586,7 +938,7 @@ function SlotApp() {
               >
                 -
               </button>
-              <div className="bet-options" aria-label="Ставка">
+              <div className="bet-options" aria-label={t("ui.betAria")}>
                 {BET_OPTIONS.map((option, index) => (
                   <button
                     className={`bet-option${index === currentBetIndex ? " is-active" : ""}`}
@@ -628,7 +980,7 @@ function SlotApp() {
             type="button"
             onClick={toggleAutoPlay}
           >
-            {autoSpinsRemaining > 0 ? `Стоп\n${autoSpinsRemaining}` : "Авто"}
+            {autoSpinsRemaining > 0 ? t("ui.autoStop", { count: autoSpinsRemaining }) : t("ui.auto")}
           </button>
 
           <button
@@ -637,157 +989,34 @@ function SlotApp() {
             disabled={spinning || balance < bet}
             onClick={handleSpin}
           >
-            Спин
+            {t("ui.spin")}
           </button>
         </section>
       </section>
 
       <footer className="footer-panel">
         <section className="footer-section">
-          <h2>Правила и состояние</h2>
+          <h2>{t("ui.mechanicsTitle")}</h2>
           <div className="footer-grid">
             <article className="footer-card">
-              <span className="card-label">Правила</span>
-              <strong>243 ways</strong>
-              <p>Выигрыши считаются слева направо. 3+ scatter в любой позиции платят сразу и запускают bonus free spins.</p>
-            </article>
-            <article className="footer-card">
-              <span className="card-label">Математический профиль</span>
-              <strong>{profile.label}</strong>
-              <p>{profile.description} RTP: {formatRtpValue(profile.targetRtp)}%</p>
-            </article>
-            <article className="footer-card">
-              <span className="card-label">Сессия RTP</span>
+              <span className="card-label">{t("ui.sessionRtp")}</span>
               <strong>{sessionRtp.toFixed(2)}%</strong>
-              <p>Ставки: {formatNumber(totalBets)} • Выплаты: {formatNumber(totalWins)}</p>
+              <p>{t("ui.betsAndWins", { bets: formatNumber(totalBets), wins: formatNumber(totalWins) })}</p>
             </article>
-            <article className="footer-card">
-              <span className="card-label">Последний раунд</span>
+            <article className="footer-card footer-card-wide">
+              <span className="card-label">{t("ui.lastSpin")}</span>
               <strong>{totalWays} ways</strong>
-              <p>{winSummaryText} {lastFeatureText}</p>
+              <p>{`${winSummaryText}\n${lastFeatureText}`}</p>
             </article>
           </div>
         </section>
 
-        <section className="footer-section">
-          <div className="settings-header">
-            <h2>Техническая информация / настройки</h2>
-            <span className="muted-text">Reel strips + paytable профили</span>
-          </div>
-
-          <div className="settings-grid">
-            <label className="setting-card" htmlFor="profileSelect">
-              <span className="card-label">Профиль математики</span>
-              <strong>{profile.volatility}</strong>
-              <select
-                id="profileSelect"
-                className="profile-select"
-                disabled={spinning}
-                value={profileId}
-                onChange={(event) => resetSession(event.target.value)}
-              >
-                {Object.values(SLOT_PROFILES).map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label} • RTP {option.targetRtp}%
-                  </option>
-                ))}
-              </select>
-              <p>Профиль меняет reel strips и таблицу выплат. При смене профиль сессия сбрасывается.</p>
-            </label>
-            <article className="setting-card">
-              <span className="card-label">Текущий RTP</span>
-              <strong>{formatRtpValue(profile.targetRtp)}%</strong>
-              <p>Слот сейчас работает с RTP активного математического профиля.</p>
-            </article>
-
-
-            <label className="setting-card" htmlFor="autoSpinSelect">
-              <span className="card-label">Автоигра</span>
-              <strong>{autoSpinCount} спинов</strong>
-              <select
-                id="autoSpinSelect"
-                className="profile-select"
-                disabled={spinning}
-                value={autoSpinCount}
-                onChange={(event) => setAutoSpinCount(Number(event.target.value))}
-              >
-                {AUTO_SPIN_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option} автоспинов
-                  </option>
-                ))}
-              </select>
-              <p>Пока это настройка прототипа. Следующим шагом ее можно связать с реальным циклом autoplay.</p>
-            </label>
-
-            <label className="setting-card" htmlFor="stopOnBonusSelect">
-              <span className="card-label">Stop conditions</span>
-              <strong>{stopOnBonus ? "Стоп по bonus" : "Без стопа по bonus"}</strong>
-              <select
-                id="stopOnBonusSelect"
-                className="profile-select"
-                disabled={spinning}
-                value={stopOnBonus ? "on" : "off"}
-                onChange={(event) => setStopOnBonus(event.target.value === "on")}
-              >
-                <option value="on">Стоп при bonus trigger</option>
-                <option value="off">Не останавливать по bonus</option>
-              </select>
-              <select
-                className="profile-select"
-                disabled={spinning}
-                value={stopOnBigWin}
-                onChange={(event) => setStopOnBigWin(Number(event.target.value))}
-              >
-                {BIG_WIN_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option === 0 ? "Без стопа по big win" : `Стоп при ${option}x ставки`}
-                  </option>
-                ))}
-              </select>
-              <p>Автоигра может остановиться при bonus trigger или если один спин дал выигрыш выше заданного множителя ставки.</p>
-            </label>
-
-            <label className="setting-card" htmlFor="speedSelect">
-              <span className="card-label">Скорость игры</span>
-              <strong>{speedOption.label}</strong>
-              <select
-                id="speedSelect"
-                className="profile-select"
-                disabled={spinning}
-                value={speedId}
-                onChange={(event) => setSpeedId(event.target.value)}
-              >
-                {SPEED_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <p>Эта настройка меняет длительность анимации вращения и скорость остановки барабанов.</p>
-            </label>
-
-            <article className="setting-card">
-              <span className="card-label">Таблица выплат</span>
-              <div className="paytable">
-                {paytableRows.map((row) => (
-                  <div className="paytable-row" key={row.symbol.id}>
-                    <span>{row.symbol.icon} {row.symbol.name}</span>
-                    <span>x3 {row.payoutLabels[3]}</span>
-                    <span>x4 {row.payoutLabels[4]}</span>
-                    <span>x5 {row.payoutLabels[5]}</span>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </div>
-        </section>
       </footer>
 
       {showSettingsModal ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setShowSettingsModal(false)}>
           <section
-            aria-label="Правила и настройки"
+            aria-label={t("ui.rulesAria")}
             className="settings-modal"
             role="dialog"
             aria-modal="true"
@@ -796,22 +1025,28 @@ function SlotApp() {
             <div className="settings-header">
               <div>
                 <p className="eyebrow">Rules / Settings</p>
-                <h2>Правила и настройки</h2>
+                <h2>{t("ui.rulesTitle")}</h2>
               </div>
               <button className="close-button" type="button" onClick={() => setShowSettingsModal(false)}>
-                Закрыть
+                {t("ui.close")}
               </button>
             </div>
 
             <div className="modal-grid">
               <article className="setting-card">
-                <span className="card-label">Правила игры</span>
+                <span className="card-label">{t("ui.payMode")}</span>
                 <strong>243 ways</strong>
-                <p>Комбинации считаются слева направо. 3, 4 или 5 scatter в любой позиции платят сразу и запускают bonus free spins с повышенным множителем выигрыша.</p>
+                <p>{t("ui.waysDescriptionExtended")}</p>
+              </article>
+
+              <article className="setting-card">
+                <span className="card-label">{t("ui.bonusRulesTitle")}</span>
+                <strong>3 / 4 / 5 Scatter</strong>
+                <div className="formatted-rule-text">{renderFormattedRuleText(t("ui.bonusRulesExtended"))}</div>
               </article>
 
               <label className="setting-card" htmlFor="modalProfileSelect">
-                <span className="card-label">Профиль математики</span>
+                <span className="card-label">{t("ui.profileSelect")}</span>
                 <strong>{profile.label}</strong>
                 <select
                   id="modalProfileSelect"
@@ -822,21 +1057,21 @@ function SlotApp() {
                 >
                   {Object.values(SLOT_PROFILES).map((option) => (
                     <option key={option.id} value={option.id}>
-                      {option.label} • RTP {option.targetRtp}%
+                      {t("ui.profileOption", { label: option.label, rtp: option.targetRtp })}
                     </option>
                   ))}
                 </select>
-                <p>Меняет reel strips и таблицу выплат. При смене профиль сессии сбрасывается.</p>
+                <p>{t("ui.profileResetHint")}</p>
               </label>
               <article className="setting-card">
-                <span className="card-label">Текущий RTP</span>
+                <span className="card-label">{t("ui.targetRtp")}</span>
                 <strong>{formatRtpValue(profile.targetRtp)}%</strong>
-                <p>Показывает RTP выбранного профиля без ручного редактирования.</p>
+                <p>{t("ui.targetRtpTheoryHint")}</p>
               </article>
 
               <label className="setting-card" htmlFor="modalAutoSpinSelect">
-                <span className="card-label">Автоигра</span>
-                <strong>{autoSpinCount} спинов</strong>
+                <span className="card-label">{t("ui.autoplay")}</span>
+                <strong>{t("ui.spinsCount", { count: autoSpinCount })}</strong>
                 <select
                   id="modalAutoSpinSelect"
                   className="profile-select"
@@ -846,16 +1081,16 @@ function SlotApp() {
                 >
                   {AUTO_SPIN_OPTIONS.map((option) => (
                     <option key={option} value={option}>
-                      {option} автоспинов
+                      {t("ui.autospinsCount", { count: option })}
                     </option>
                   ))}
                 </select>
-                <p>Выбирает длину серии autoplay. Запуск и остановка делаются кнопкой Авто под барабанами.</p>
+                <p>{t("ui.autoplayModalHint")}</p>
               </label>
 
               <label className="setting-card" htmlFor="modalStopOnBonusSelect">
-                <span className="card-label">Stop conditions</span>
-                <strong>{stopOnBonus ? "Стоп по bonus" : "Стоп по big win / manual"}</strong>
+                <span className="card-label">{t("ui.stopConditions")}</span>
+                <strong>{stopOnBonus ? t("ui.stopOnBonus") : t("ui.stopOnlyByThreshold")}</strong>
                 <select
                   id="modalStopOnBonusSelect"
                   className="profile-select"
@@ -863,8 +1098,8 @@ function SlotApp() {
                   value={stopOnBonus ? "on" : "off"}
                   onChange={(event) => setStopOnBonus(event.target.value === "on")}
                 >
-                  <option value="on">Стоп при bonus trigger</option>
-                  <option value="off">Не останавливать по bonus</option>
+                  <option value="on">{t("ui.stopAtBonus")}</option>
+                  <option value="off">{t("ui.dontStopAtBonus")}</option>
                 </select>
                 <select
                   className="profile-select"
@@ -874,15 +1109,15 @@ function SlotApp() {
                 >
                   {BIG_WIN_OPTIONS.map((option) => (
                     <option key={option} value={option}>
-                      {option === 0 ? "Без стопа по big win" : `Стоп при ${option}x ставки`}
+                      {option === 0 ? t("ui.noBigWinStop") : t("ui.stopAtStakeX", { count: option })}
                     </option>
                   ))}
                 </select>
-                <p>Можно остановить autoplay на bonus trigger или на big win относительно текущей ставки.</p>
+                <p>{t("ui.stopConditionsModalHint")}</p>
               </label>
 
               <article className="setting-card">
-                <span className="card-label">Таблица выплат</span>
+                <span className="card-label">{t("ui.paytable")}</span>
                 <div className="paytable">
                   {paytableRows.map((row) => (
                     <div className="paytable-row" key={`modal-${row.symbol.id}`}>
@@ -896,7 +1131,7 @@ function SlotApp() {
               </article>
 
               <label className="setting-card" htmlFor="modalSpeedSelect">
-                <span className="card-label">Скорость игры</span>
+                <span className="card-label">{t("ui.gameSpeed")}</span>
                 <strong>{speedOption.label}</strong>
                 <select
                   id="modalSpeedSelect"
@@ -911,8 +1146,59 @@ function SlotApp() {
                     </option>
                   ))}
                 </select>
-                <p>Меняет длительность анимации и темп остановки барабанов.</p>
+                <p>{t("ui.speedModalHint")}</p>
               </label>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {showBuyBonusModal ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setShowBuyBonusModal(false)}>
+          <section
+            aria-label={t("ui.buyBonusTitle")}
+            className="settings-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="settings-header">
+              <div>
+                <p className="eyebrow">Bonus Buy</p>
+                <h2>{t("ui.buyBonusTitle")}</h2>
+              </div>
+              <button className="close-button" type="button" onClick={() => setShowBuyBonusModal(false)}>
+                {t("ui.close")}
+              </button>
+            </div>
+
+            <div className="modal-grid">
+              <article className="setting-card">
+                <span className="card-label">{t("ui.buyBonusTitle")}</span>
+                <strong>{formatNumber(bet)}</strong>
+                <p>{t("ui.buyBonusHint")}</p>
+                <p>{t("ui.buyBonusRules")}</p>
+              </article>
+
+              {BONUS_BUY_OPTIONS.map((option) => {
+                const price = bet * option.priceMultiplier;
+
+                return (
+                  <article className="setting-card" key={`bonus-buy-${option.scatterCount}`}>
+                    <span className="card-label">{t("ui.buyBonusOption", { scatterCount: option.scatterCount })}</span>
+                    <strong>{formatNumber(price)}</strong>
+                    <p>{t("ui.buyBonusPrice", { multiplier: option.priceMultiplier })}</p>
+                    <button
+                      className="buy-bonus-option-button"
+                      type="button"
+                      disabled={spinning || balance < price}
+                      onClick={() => handleBuyBonus(option.scatterCount, option.priceMultiplier)}
+                    >
+                      {t("ui.buyBonus")}
+                    </button>
+                  </article>
+                );
+              })}
             </div>
           </section>
         </div>
@@ -942,11 +1228,11 @@ class ErrorBoundary extends Component {
             <header className="stage-header">
               <div>
                 <p className="eyebrow">Runtime error</p>
-                <h1>Приложение не отрисовалось</h1>
+                <h1>{t("ui.runtimeTitle")}</h1>
               </div>
             </header>
             <section className="machine-frame">
-              <p>Ошибка React: {this.state.message}</p>
+              <p>{t("ui.reactError", { message: this.state.message })}</p>
             </section>
           </section>
         </main>

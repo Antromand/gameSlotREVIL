@@ -97,6 +97,13 @@ function createProfile({
   };
 }
 
+const COMMON_BONUS_CONFIG = {
+  triggerCount: 3,
+  freeSpins: { 3: 7, 4: 9, 5: 13 },
+  retriggerSpins: {},
+  winMultiplier: 1
+};
+
 export const SLOT_PROFILES = {
   low: createProfile({
     id: "low",
@@ -106,12 +113,7 @@ export const SLOT_PROFILES = {
     description: "Частые попадания, мягкие фриспины и меньше разброс по крупным выигрышам.",
     paytable: BASE_PAYTABLE,
     scatterPays: {},
-    bonus: {
-      triggerCount: 3,
-      freeSpins: { 3: 8, 4: 12, 5: 18 },
-      retriggerSpins: { 3: 4, 4: 6, 5: 8 },
-      winMultiplier: 1.8
-    },
+    bonus: COMMON_BONUS_CONFIG,
     stripCounts: [
       { sym1: 12, sym2: 12, sym3: 10, sym4: 9, sym5: 8, sym6: 6, sym7: 4, sym8: 3, sym9: 2, wild: 2, scatter: 2, blank: 6 },
       { sym1: 12, sym2: 12, sym3: 10, sym4: 9, sym5: 8, sym6: 6, sym7: 4, sym8: 3, sym9: 2, wild: 2, scatter: 2, blank: 6 },
@@ -128,12 +130,7 @@ export const SLOT_PROFILES = {
     description: "Компромисс между частотой базовых попаданий и более заметными бонусными сериями.",
     paytable: BASE_PAYTABLE,
     scatterPays: {},
-    bonus: {
-      triggerCount: 3,
-      freeSpins: { 3: 10, 4: 14, 5: 20 },
-      retriggerSpins: { 3: 5, 4: 8, 5: 10 },
-      winMultiplier: 2.5
-    },
+    bonus: COMMON_BONUS_CONFIG,
     stripCounts: [
       { sym1: 10, sym2: 10, sym3: 8, sym4: 7, sym5: 6, sym6: 5, sym7: 4, sym8: 3, sym9: 2, wild: 1, scatter: 1, blank: 13 },
       { sym1: 10, sym2: 10, sym3: 8, sym4: 7, sym5: 6, sym6: 5, sym7: 4, sym8: 3, sym9: 2, wild: 1, scatter: 1, blank: 13 },
@@ -150,12 +147,7 @@ export const SLOT_PROFILES = {
     description: "Редкие базовые выигрыши, реже бонус, но сильнее ценность премиум-символов и фриспинов.",
     paytable: BASE_PAYTABLE,
     scatterPays: {},
-    bonus: {
-      triggerCount: 3,
-      freeSpins: { 3: 12, 4: 18, 5: 25 },
-      retriggerSpins: { 3: 6, 4: 10, 5: 12 },
-      winMultiplier: 4
-    },
+    bonus: COMMON_BONUS_CONFIG,
     stripCounts: [
       { sym1: 8, sym2: 8, sym3: 7, sym4: 6, sym5: 5, sym6: 3, sym7: 2, sym8: 2, sym9: 1, wild: 1, scatter: 1, blank: 21 },
       { sym1: 8, sym2: 8, sym3: 7, sym4: 6, sym5: 5, sym6: 3, sym7: 2, sym8: 2, sym9: 1, wild: 1, scatter: 1, blank: 21 },
