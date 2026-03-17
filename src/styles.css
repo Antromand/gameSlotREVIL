@@ -1,4 +1,4 @@
-﻿@import url("https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&display=swap");
 
 :root {
   color-scheme: dark;
@@ -643,8 +643,8 @@ img {
 }
 
 .bonus-buy-modal {
-  width: 640px;
-  padding: 5rem 4rem 3rem;
+  width: 800px;
+  height: 600px;
   background-image: url("../assets/ui/bonus-buy-modal.png");
 }
 
@@ -688,6 +688,71 @@ img {
 
 .bonus-buy-modal .modal-grid {
   grid-template-columns: 1fr;
+}
+
+.bonus-buy-header h2 {
+  font-size: 4rem;
+  margin-bottom: 1px;
+}
+
+.bonus-buy-modal .close-button {
+  display: none;
+}
+
+.bonus-buy-picker {
+  display: grid;
+  gap: 0.2rem;
+  margin: 1rem auto 0;
+  width: 65%;
+}
+
+.bonus-buy-option {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 0.15rem 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 250, 240, 0.82);
+  font-size: 2.7rem;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.bonus-buy-option-label,
+.bonus-buy-option-price {
+  transition: text-shadow 180ms ease, color 180ms ease;
+}
+
+.bonus-buy-option-price {
+  justify-self: end;
+}
+
+.bonus-buy-option.is-selected .bonus-buy-option-label,
+.bonus-buy-option.is-selected .bonus-buy-option-price {
+  color: #fff;
+  text-shadow: -10px 8px 2.2px rgba(0, 0, 0, 0.47);
+}
+
+.bonus-buy-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 6.9rem;
+  width: 48%;
+  display: flex;
+  justify-content: space-between;
+  transform: translateX(-50%);
+}
+
+.bonus-buy-action {
+  width: 132px;
+  height: 56px;
+  border: 0;
+  background: transparent;
+  color: #f7f0e3;
+  font-size: 2.3rem;
+  line-height: 1;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.5);
 }
 
 .setting-card {
@@ -788,4 +853,5 @@ img {
   78% { transform: translateY(-3px); }
   100% { transform: translateY(0); }
 }
+
 

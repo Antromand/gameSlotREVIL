@@ -1,4 +1,4 @@
-import React, { Component, useEffect, useRef, useState } from "react";
+﻿import React, { Component, useEffect, useRef, useState } from "react";
 import {
   BET_OPTIONS,
   DEFAULT_BALANCE,
@@ -156,6 +156,17 @@ function renderFormattedRuleText(text) {
   });
 }
 
+const BONUS_BUY_TITLE_TEXT = "\u041A\u0443\u043F\u0438\u0442\u044C \u0431\u043E\u043D\u0443\u0441";
+const BONUS_BUY_CANCEL_TEXT = "\u041E\u0442\u043C\u0435\u043D\u0430";
+const BONUS_BUY_CONFIRM_TEXT = "\u041A\u0443\u043F\u0438\u0442\u044C";
+const BONUS_BUY_PRICE_SUFFIX = "\u043C\u043E\u043D\u0435\u0442";
+const BONUS_BUY_SCATTER_LABEL_FEW = "\u0441\u043A\u0430\u0442\u0442\u0435\u0440\u0430";
+const BONUS_BUY_SCATTER_LABEL_MANY = "\u0441\u043A\u0430\u0442\u0442\u0435\u0440\u043E\u0432";
+
+function formatBonusScatterLabel(scatterCount) {
+  return `${scatterCount} ${scatterCount === 5 ? BONUS_BUY_SCATTER_LABEL_MANY : BONUS_BUY_SCATTER_LABEL_FEW}`;
+}
+
 function AssetButton({ shellClassName, artClassName, label, onClick, disabled = false, ariaLabel, children }) {
   return (
     <div className={`asset-button-shell ${shellClassName}${disabled ? " is-disabled" : ""}`}>
@@ -193,6 +204,7 @@ function SlotApp() {
   const [bonusBanner, setBonusBanner] = useState(t("feature.bonusInactive"));
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showBuyBonusModal, setShowBuyBonusModal] = useState(false);
+  const [selectedBonusScatterCount, setSelectedBonusScatterCount] = useState(BONUS_BUY_OPTIONS[0].scatterCount);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [viewportScale, setViewportScale] = useState(1);
   const [spinningColumns, setSpinningColumns] = useState([]);
@@ -221,6 +233,8 @@ function SlotApp() {
   const spinVisualStyle = getSpinVisualStyle(currentSpinSpeedOption.id);
   const sessionRtp = totalBets === 0 ? 0 : (totalWins / totalBets) * 100;
   const totalWays = waysWins.reduce((sum, entry) => sum + entry.ways, 0);
+  const selectedBonusOption = BONUS_BUY_OPTIONS.find((option) => option.scatterCount === selectedBonusScatterCount) ?? BONUS_BUY_OPTIONS[0];
+  const selectedBonusPrice = bet * selectedBonusOption.priceMultiplier;
 
   useEffect(() => {
     displayGridRef.current = displayGrid;
@@ -352,6 +366,7 @@ function SlotApp() {
 
   function openBuyBonusModal() {
     if (!spinning) {
+      setSelectedBonusScatterCount(BONUS_BUY_OPTIONS[0].scatterCount);
       setShowBuyBonusModal(true);
     }
   }
@@ -450,6 +465,10 @@ function SlotApp() {
     );
 
     startSpinSequence(plannedSpin, nextSpinSpeedOption);
+  }
+
+  function confirmSelectedBonusBuy() {
+    handleBuyBonus(selectedBonusOption.scatterCount, selectedBonusOption.priceMultiplier);
   }
 
   function handleBuyBonus(scatterCount, priceMultiplier) {
@@ -1216,43 +1235,43 @@ function SlotApp() {
             aria-modal="true"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="settings-header">
+            <div className="settings-header bonus-buy-header">
               <div>
-                <p className="eyebrow">Bonus Buy</p>
-                <h2>{t("ui.buyBonusTitle")}</h2>
+                <h2>{BONUS_BUY_TITLE_TEXT}</h2>
               </div>
-              <button className="close-button" type="button" onClick={() => setShowBuyBonusModal(false)}>
-                {t("ui.close")}
-              </button>
             </div>
 
-            <div className="modal-grid">
-              <article className="setting-card">
-                <span className="card-label">{t("ui.buyBonusTitle")}</span>
-                <strong>{formatNumber(bet)}</strong>
-                <p>{t("ui.buyBonusHint")}</p>
-                <p>{t("ui.buyBonusRules")}</p>
-              </article>
-
+            <div className="bonus-buy-picker" role="listbox" aria-label={t("ui.buyBonusTitle")}>
               {BONUS_BUY_OPTIONS.map((option) => {
                 const price = bet * option.priceMultiplier;
+                const isSelected = option.scatterCount === selectedBonusScatterCount;
 
                 return (
-                  <article className="setting-card" key={`bonus-buy-${option.scatterCount}`}>
-                    <span className="card-label">{t("ui.buyBonusOption", { scatterCount: option.scatterCount })}</span>
-                    <strong>{formatNumber(price)}</strong>
-                    <p>{t("ui.buyBonusPrice", { multiplier: option.priceMultiplier })}</p>
-                    <button
-                      className="buy-bonus-option-button"
-                      type="button"
-                      disabled={spinning || balance < price}
-                      onClick={() => handleBuyBonus(option.scatterCount, option.priceMultiplier)}
-                    >
-                      {t("ui.buyBonus")}
-                    </button>
-                  </article>
+                  <button
+                    className={`bonus-buy-option${isSelected ? " is-selected" : ""}`}
+                    key={`bonus-buy-${option.scatterCount}`}
+                    type="button"
+                    onClick={() => setSelectedBonusScatterCount(option.scatterCount)}
+                  >
+                    <span className="bonus-buy-option-label">{formatBonusScatterLabel(option.scatterCount)}</span>
+                    <span className="bonus-buy-option-price">{formatNumber(price)} {BONUS_BUY_PRICE_SUFFIX}</span>
+                  </button>
                 );
               })}
+            </div>
+
+            <div className="bonus-buy-actions">
+              <button className="bonus-buy-action bonus-buy-cancel" type="button" onClick={() => setShowBuyBonusModal(false)}>
+                {BONUS_BUY_CANCEL_TEXT}
+              </button>
+              <button
+                className="bonus-buy-action bonus-buy-confirm"
+                type="button"
+                disabled={spinning || balance < selectedBonusPrice}
+                onClick={confirmSelectedBonusBuy}
+              >
+                {BONUS_BUY_CONFIRM_TEXT}
+              </button>
             </div>
           </section>
         </div>
@@ -1305,6 +1324,8 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
+
 
 
 
