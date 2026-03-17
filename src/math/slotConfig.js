@@ -1,3 +1,19 @@
+import sym1Image from "../../assets/symbols/sym1-cage.png";
+import sym2Image from "../../assets/symbols/sym2-medallion.png";
+import sym3Image from "../../assets/symbols/sym3-dagger.png";
+import sym4Image from "../../assets/symbols/sym4-ring.png";
+import sym5Image from "../../assets/symbols/sym5-hand.png";
+import sym6Image from "../../assets/symbols/sym6-head.png";
+import sym7Image from "../../assets/symbols/sym7-totem.png";
+import sym8Image from "../../assets/symbols/sym8-ritual-warrior.png";
+import sym9Image from "../../assets/symbols/sym9-armored-warrior.png";
+import wildImage from "../../assets/symbols/wild.png";
+import wildX2Image from "../../assets/symbols/wildx2.png";
+import wildX3Image from "../../assets/symbols/wildx3.png";
+import wildX4Image from "../../assets/symbols/wildx4.png";
+import wildX5Image from "../../assets/symbols/wildx5.png";
+import scatterImage from "../../assets/symbols/scatter.png";
+
 export const DEFAULT_BALANCE = 1000;
 export const BET_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 250, 500];
 export const GRID_COLUMNS = 5;
@@ -18,18 +34,26 @@ export const SYMBOL_ORDER = [
   "blank"
 ];
 
+export const WILD_ICON_BY_MULTIPLIER = {
+  1: wildImage,
+  2: wildX2Image,
+  3: wildX3Image,
+  4: wildX4Image,
+  5: wildX5Image
+};
+
 export const SYMBOL_DEFS = {
-  wild: { id: "wild", name: "Wild", icon: "WILD", kind: "wild" },
-  sym1: { id: "sym1", name: "Symbol 1", icon: "1", kind: "base" },
-  sym2: { id: "sym2", name: "Symbol 2", icon: "2", kind: "base" },
-  sym3: { id: "sym3", name: "Symbol 3", icon: "3", kind: "base" },
-  sym4: { id: "sym4", name: "Symbol 4", icon: "4", kind: "base" },
-  sym5: { id: "sym5", name: "Symbol 5", icon: "5", kind: "base" },
-  sym6: { id: "sym6", name: "Symbol 6", icon: "6", kind: "base" },
-  sym7: { id: "sym7", name: "Symbol 7", icon: "7", kind: "base" },
-  sym8: { id: "sym8", name: "Symbol 8", icon: "8", kind: "base" },
-  sym9: { id: "sym9", name: "Symbol 9", icon: "9", kind: "base" },
-  scatter: { id: "scatter", name: "Scatter", icon: "BONUS", kind: "scatter" },
+  wild: { id: "wild", name: "Wild", icon: wildImage, kind: "wild" },
+  sym1: { id: "sym1", name: "Cage", icon: sym1Image, kind: "base" },
+  sym2: { id: "sym2", name: "Medallion", icon: sym2Image, kind: "base" },
+  sym3: { id: "sym3", name: "Dagger", icon: sym3Image, kind: "base" },
+  sym4: { id: "sym4", name: "Ring", icon: sym4Image, kind: "base" },
+  sym5: { id: "sym5", name: "Hand", icon: sym5Image, kind: "base" },
+  sym6: { id: "sym6", name: "Head", icon: sym6Image, kind: "base" },
+  sym7: { id: "sym7", name: "Totem", icon: sym7Image, kind: "base" },
+  sym8: { id: "sym8", name: "Ritual Warrior", icon: sym8Image, kind: "base" },
+  sym9: { id: "sym9", name: "Armored Warrior", icon: sym9Image, kind: "base" },
+  scatter: { id: "scatter", name: "Scatter", icon: scatterImage, kind: "scatter" },
   blank: { id: "blank", name: "", icon: "", kind: "blank" }
 };
 

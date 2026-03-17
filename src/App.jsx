@@ -19,6 +19,8 @@ const SPEED_OPTIONS = [
   { id: "fast", label: "2x", spinBase: 700, spinStep: 220, previewStep: 30, settleStep: 88, stripStepMs: 280 },
   { id: "hyper", label: "3x", spinBase: 180, spinStep: 68, previewStep: 16, settleStep: 40, stripStepMs: 280 }
 ];
+const BASE_STAGE_WIDTH = 1024;
+const BASE_STAGE_HEIGHT = 768;
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 const BIG_WIN_OPTIONS = [0, 10, 25, 50, 100];
@@ -154,6 +156,23 @@ function renderFormattedRuleText(text) {
   });
 }
 
+function AssetButton({ shellClassName, artClassName, label, onClick, disabled = false, ariaLabel, children }) {
+  return (
+    <div className={`asset-button-shell ${shellClassName}${disabled ? " is-disabled" : ""}`}>
+      <span className={artClassName} aria-hidden="true" />
+      {children}
+      <button
+        className="asset-button-hitbox"
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={ariaLabel ?? label}
+      >
+        <span className="sr-only">{label}</span>
+      </button>
+    </div>
+  );
+}
 function SlotApp() {
   const [profileId, setProfileId] = useState(DEFAULT_PROFILE_ID);
   const [balance, setBalance] = useState(DEFAULT_BALANCE);
@@ -174,6 +193,8 @@ function SlotApp() {
   const [bonusBanner, setBonusBanner] = useState(t("feature.bonusInactive"));
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showBuyBonusModal, setShowBuyBonusModal] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [viewportScale, setViewportScale] = useState(1);
   const [spinningColumns, setSpinningColumns] = useState([]);
   const [settlingColumns, setSettlingColumns] = useState([]);
   const [spinningStripColumns, setSpinningStripColumns] = useState([]);
@@ -211,6 +232,23 @@ function SlotApp() {
     };
   }, []);
 
+  useEffect(() => {
+    function updateViewportScale() {
+      const nextScale = Math.min(
+        window.innerWidth / BASE_STAGE_WIDTH,
+        window.innerHeight / BASE_STAGE_HEIGHT
+      );
+      setViewportScale(Number.isFinite(nextScale) ? Math.min(nextScale, 1) : 1);
+    }
+
+    updateViewportScale();
+    window.addEventListener("resize", updateViewportScale);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportScale);
+    };
+  }, []);
+
   function clearSpinTimers() {
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
     intervalsRef.current.forEach((interval) => window.clearInterval(interval));
@@ -221,7 +259,7 @@ function SlotApp() {
   function playScatterTease() {
     const AudioContextCtor = window.AudioContext ?? window.webkitAudioContext;
 
-    if (!AudioContextCtor) {
+    if (!soundEnabled || !AudioContextCtor) {
       return;
     }
 
@@ -251,6 +289,10 @@ function SlotApp() {
     gainNode.connect(context.destination);
     oscillator.start(now);
     oscillator.stop(now + 0.2);
+  }
+
+  function toggleSound() {
+    setSoundEnabled((value) => !value);
   }
 
   function maybePlayScatterTease(grid, stoppedColumn) {
@@ -288,6 +330,7 @@ function SlotApp() {
     setBonusBanner(t("feature.bonusInactive"));
     setShowSettingsModal(false);
     setShowBuyBonusModal(false);
+    setSoundEnabled(true);
     autoSpinQueuedRef.current = false;
     autoSpinStopRequestedRef.current = false;
     setSpinningColumns([]);
@@ -807,6 +850,14 @@ function SlotApp() {
 
   return (
     <main className="app-shell">
+      <div
+        className="app-viewport"
+        style={{
+          width: `${BASE_STAGE_WIDTH}px`,
+          height: `${BASE_STAGE_HEIGHT}px`,
+          transform: `scale(${viewportScale})`
+        }}
+      >
       <section className="slot-stage">
         <header className="stage-header">
           <div>
@@ -814,6 +865,8 @@ function SlotApp() {
             <h1>{t("ui.title")}</h1>
           </div>
         </header>
+
+        <div className="top-crest" aria-hidden="true" />
 
         <section className="machine-frame" aria-label={t("ui.machineAria")} style={spinVisualStyle}>
             {activeBonusState ? (
@@ -846,6 +899,7 @@ function SlotApp() {
                 })}</span>
               </div>
             ) : null}
+            <div className="reel-grid-backdrop" aria-hidden="true" />
             <div className="reel-grid">
               {displayGrid.map((column, columnIndex) => (
                 <div
@@ -861,9 +915,7 @@ function SlotApp() {
                         style={{ top: `calc(${entry.row} * (var(--symbol-height) + var(--reel-gap)))` }}
                       >
                         <div className="symbol-face">
-                          <div className="symbol-icon">{entry.symbol.icon}</div>
-                          <div className="symbol-name">{entry.symbol.name}</div>
-                          {entry.symbol.multiplier ? <div className="symbol-multiplier">x{entry.symbol.multiplier}</div> : null}
+                          <div className="symbol-icon">{entry.symbol.icon ? <img className="symbol-image" src={entry.symbol.icon} alt={entry.symbol.name} /> : null}</div>
                         </div>
                       </article>
                     ))}
@@ -891,9 +943,7 @@ function SlotApp() {
                         key={`${cellKey}-${repeatIndex}`}
                       >
                         <div className="symbol-face">
-                          <div className="symbol-icon">{symbol.icon}</div>
-                          <div className="symbol-name">{symbol.name}</div>
-                          {symbol.multiplier ? <div className="symbol-multiplier">x{symbol.multiplier}</div> : null}
+                          <div className="symbol-icon">{symbol.icon ? <img className="symbol-image" src={symbol.icon} alt={symbol.name} /> : null}</div>
                         </div>
                       </article>
                     );
@@ -905,66 +955,56 @@ function SlotApp() {
         </section>
 
         <section className="under-reels-bar">
-          <article className="top-stat">
-            <span>{t("ui.balance")}</span>
-            <strong>{formatNumber(balance)}</strong>
-          </article>
-          <article className="top-stat">
+          <article className="top-stat top-stat-win">
             <span>{t("ui.lastWin")}</span>
             <strong>{formatNumber(lastWin)}</strong>
-          </article>
-          <article className="top-stat bonus-stat">
-            <span>{t("ui.bonus")}</span>
-            <strong>{bonusBanner}</strong>
           </article>
         </section>
 
         <section className="control-bar">
-          <button className="round-button side-button" type="button" onClick={openSettingsModal}>
-            {t("ui.settings")}
-          </button>
+          <AssetButton
+            shellClassName="side-button"
+            artClassName="side-button-art"
+            label={t("ui.settings")}
+            onClick={openSettingsModal}
+          />
 
-          <button className="round-button bonus-buy-button" type="button" onClick={openBuyBonusModal}>
-            {t("ui.buyBonus")}
-          </button>
+          <AssetButton
+            shellClassName={`sound-button${soundEnabled ? " is-on" : " is-off"}`}
+            artClassName="sound-button-art"
+            label={soundEnabled ? "Sound on" : "Sound off"}
+            ariaLabel={soundEnabled ? "Sound on" : "Sound off"}
+            onClick={toggleSound}
+          />
+
+          <AssetButton
+            shellClassName="bonus-buy-button"
+            artClassName="bonus-buy-button-art"
+            label={t("ui.buyBonus")}
+            onClick={openBuyBonusModal}
+          >
+            <span className="bonus-buy-button-label">{t("ui.buyBonus")}</span>
+          </AssetButton>
 
           <div className="center-controls">
-            <div className="bet-strip">
-              <button
-                className="bet-modifier"
-                type="button"
-                disabled={spinning || currentBetIndex === 0}
-                onClick={() => setCurrentBetIndex((value) => value - 1)}
-              >
-                -
-              </button>
-              <div className="bet-options" aria-label={t("ui.betAria")}>
-                {BET_OPTIONS.map((option, index) => (
-                  <button
-                    className={`bet-option${index === currentBetIndex ? " is-active" : ""}`}
-                    type="button"
-                    disabled={spinning}
-                    key={option}
-                    onClick={() => setCurrentBetIndex(index)}
-                  >
-                    {formatCompactNumber(option)}
-                  </button>
-                ))}
-              </div>
-              <button
-                className="bet-modifier"
-                type="button"
-                disabled={spinning || currentBetIndex === BET_OPTIONS.length - 1}
-                onClick={() => setCurrentBetIndex((value) => value + 1)}
-              >
-                +
-              </button>
-            </div>
-
             <div className="round-meta">
               <span>{statusText}</span>
               <span>{roundSummary}</span>
             </div>
+          </div>
+
+          <div className="spin-counter" aria-live="polite">
+            {autoSpinsRemaining > 0 ? autoSpinsRemaining : autoSpinCount}
+          </div>
+
+          <div className="bet-display" aria-live="polite">
+            <span>{t("ui.betAria")}</span>
+            <strong>{formatNumber(bet)}</strong>
+          </div>
+
+          <div className="balance-display" aria-live="polite">
+            <span>{t("ui.balance")}</span>
+            <strong>{formatNumber(balance)}</strong>
           </div>
 
           <button
@@ -975,26 +1015,40 @@ function SlotApp() {
             {speedOption.label}
           </button>
 
-          <button
-            className={`round-button auto-button${autoSpinsRemaining > 0 ? " is-active" : ""}`}
-            type="button"
+          <AssetButton
+            shellClassName={`auto-button${autoSpinsRemaining > 0 ? " is-active" : ""}`}
+            artClassName="auto-button-art"
+            label={autoSpinsRemaining > 0 ? t("ui.autoStop", { count: autoSpinsRemaining }) : t("ui.auto")}
             onClick={toggleAutoPlay}
-          >
-            {autoSpinsRemaining > 0 ? t("ui.autoStop", { count: autoSpinsRemaining }) : t("ui.auto")}
-          </button>
+          />
 
-          <button
-            className="round-button spin-button"
-            type="button"
+          <AssetButton
+            shellClassName="bet-modifier bet-modifier-decrease"
+            artClassName="bet-modifier-art"
+            label="Decrease bet"
+            disabled={spinning || currentBetIndex === 0}
+            onClick={() => setCurrentBetIndex((value) => value - 1)}
+          />
+
+          <AssetButton
+            shellClassName="bet-modifier bet-modifier-increase"
+            artClassName="bet-modifier-art"
+            label="Increase bet"
+            disabled={spinning || currentBetIndex === BET_OPTIONS.length - 1}
+            onClick={() => setCurrentBetIndex((value) => value + 1)}
+          />
+
+          <AssetButton
+            shellClassName="spin-button"
+            artClassName="spin-button-art"
+            label={t("ui.spin")}
             disabled={spinning || balance < bet}
             onClick={handleSpin}
-          >
-            {t("ui.spin")}
-          </button>
+          />
         </section>
       </section>
 
-      <footer className="footer-panel">
+      <footer className="footer-panel sr-only-panel">
         <section className="footer-section">
           <h2>{t("ui.mechanicsTitle")}</h2>
           <div className="footer-grid">
@@ -1017,7 +1071,7 @@ function SlotApp() {
         <div className="modal-backdrop" role="presentation" onClick={() => setShowSettingsModal(false)}>
           <section
             aria-label={t("ui.rulesAria")}
-            className="settings-modal"
+            className="settings-modal rules-modal"
             role="dialog"
             aria-modal="true"
             onClick={(event) => event.stopPropagation()}
@@ -1121,7 +1175,7 @@ function SlotApp() {
                 <div className="paytable">
                   {paytableRows.map((row) => (
                     <div className="paytable-row" key={`modal-${row.symbol.id}`}>
-                      <span>{row.symbol.icon} {row.symbol.name}</span>
+                      <span className="paytable-symbol">{row.symbol.icon ? <img className="paytable-symbol-image" src={row.symbol.icon} alt={row.symbol.name} /> : null}{row.symbol.name}</span>
                       <span>x3 {row.payoutLabels[3]}</span>
                       <span>x4 {row.payoutLabels[4]}</span>
                       <span>x5 {row.payoutLabels[5]}</span>
@@ -1157,7 +1211,7 @@ function SlotApp() {
         <div className="modal-backdrop" role="presentation" onClick={() => setShowBuyBonusModal(false)}>
           <section
             aria-label={t("ui.buyBonusTitle")}
-            className="settings-modal"
+            className="settings-modal bonus-buy-modal"
             role="dialog"
             aria-modal="true"
             onClick={(event) => event.stopPropagation()}
@@ -1203,6 +1257,7 @@ function SlotApp() {
           </section>
         </div>
       ) : null}
+      </div>
     </main>
   );
 }
@@ -1250,6 +1305,7 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
 
 
 
