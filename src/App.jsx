@@ -238,7 +238,7 @@ function SlotApp() {
         window.innerWidth / BASE_STAGE_WIDTH,
         window.innerHeight / BASE_STAGE_HEIGHT
       );
-      setViewportScale(Number.isFinite(nextScale) ? Math.min(nextScale, 1) : 1);
+      setViewportScale(Number.isFinite(nextScale) ? nextScale : 1);
     }
 
     updateViewportScale();
@@ -855,7 +855,7 @@ function SlotApp() {
         style={{
           width: `${BASE_STAGE_WIDTH}px`,
           height: `${BASE_STAGE_HEIGHT}px`,
-          transform: `scale(${viewportScale})`
+          transform: `translate(-50%, -50%) scale(${viewportScale})`
         }}
       >
       <section className="slot-stage">
@@ -1305,6 +1305,7 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
 
 
 

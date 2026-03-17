@@ -74,14 +74,14 @@ img {
 .app-shell {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
   overflow: hidden;
   background: #090706;
 }
 
 .app-viewport {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   transform-origin: center center;
   will-change: transform;
 }
