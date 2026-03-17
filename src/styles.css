@@ -83,7 +83,6 @@ img {
   left: 50%;
   top: 50%;
   transform-origin: center center;
-  will-change: transform;
 }
 
 .slot-stage {
@@ -493,6 +492,7 @@ img {
   aspect-ratio: 1;
   --hitbox-width: 54%;
   --hitbox-height: 54%;
+  z-index: 9;
   font-size: 0;
 }
 
@@ -574,6 +574,7 @@ img {
   right: 28%;
   bottom: 16%;
   min-width: 72px;
+  z-index: 8;
 }
 
 .auto-button {
@@ -583,6 +584,7 @@ img {
   aspect-ratio: 1;
   --hitbox-width: 58%;
   --hitbox-height: 58%;
+  z-index: 8;
   font-size: 0;
 }
 
@@ -602,8 +604,9 @@ img {
   bottom: 5%;
   width: 150px;
   aspect-ratio: 1;
-  --hitbox-width: 56%;
-  --hitbox-height: 56%;
+  --hitbox-width: 46%;
+  --hitbox-height: 46%;
+  z-index: 7;
   font-size: 0;
 }
 
