@@ -238,7 +238,7 @@ function SlotApp() {
         window.innerWidth / BASE_STAGE_WIDTH,
         window.innerHeight / BASE_STAGE_HEIGHT
       );
-      setViewportScale(Number.isFinite(nextScale) ? nextScale : 1);
+      setViewportScale(Number.isFinite(nextScale) ? Math.min(nextScale, 1) : 1);
     }
 
     updateViewportScale();
