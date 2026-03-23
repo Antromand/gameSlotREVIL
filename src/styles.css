@@ -418,9 +418,9 @@ img {
 }
 
 .side-button {
-  left: 12.5%;
-  bottom: 7.2%;
-  width: 120px;
+  left: 3%;
+  bottom: 5%;
+  width: 150px;
   aspect-ratio: 1;
   --hitbox-width: 58%;
   --hitbox-height: 58%;
@@ -435,9 +435,9 @@ img {
 }
 
 .sound-button {
-  left: 8%;
-  bottom: 6%;
-  width: 64px;
+  left: 14%;
+  bottom: 5%;
+  width: 80px;
   aspect-ratio: 1;
   --hitbox-width: 60%;
   --hitbox-height: 60%;
