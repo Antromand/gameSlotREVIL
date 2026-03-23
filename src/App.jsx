@@ -22,6 +22,7 @@ const SPEED_OPTIONS = [
 ];
 const BASE_STAGE_WIDTH = 1024;
 const BASE_STAGE_HEIGHT = 768;
+const DEFAULT_VIEWPORT_SCALE = 1.5;
 
 const AUTO_SPIN_OPTIONS = [10, 25, 50, 100];
 const BIG_WIN_OPTIONS = [0, 10, 25, 50, 100];
@@ -246,7 +247,7 @@ function SlotApp() {
   const [showBuyBonusModal, setShowBuyBonusModal] = useState(false);
   const [selectedBonusScatterCount, setSelectedBonusScatterCount] = useState(BONUS_BUY_OPTIONS[0].scatterCount);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [viewportScale, setViewportScale] = useState(1);
+  const [viewportScale, setViewportScale] = useState(DEFAULT_VIEWPORT_SCALE);
   const [spinningColumns, setSpinningColumns] = useState([]);
   const [settlingColumns, setSettlingColumns] = useState([]);
   const [spinningStripColumns, setSpinningStripColumns] = useState([]);
@@ -293,7 +294,7 @@ function SlotApp() {
         window.innerWidth / BASE_STAGE_WIDTH,
         window.innerHeight / BASE_STAGE_HEIGHT
       );
-      setViewportScale(Number.isFinite(nextScale) ? Math.min(nextScale, 1) : 1);
+      setViewportScale(Number.isFinite(nextScale) ? Math.min(nextScale, DEFAULT_VIEWPORT_SCALE) : DEFAULT_VIEWPORT_SCALE);
     }
 
     updateViewportScale();
