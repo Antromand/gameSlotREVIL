@@ -22,7 +22,7 @@ body,
 }
 
 body {
-  margin: 0;
+  margin: clamp(24px, 6vh, 60px) 0 0;
   font-family: "Amatic SC", cursive;
   color: var(--text);
   background: #090706;
@@ -621,7 +621,6 @@ img {
   inset: 0;
   display: grid;
   place-items: center;
-  padding: 24px;
   background: rgba(48, 47, 106, 0.45);
   backdrop-filter: blur(8px);
   z-index: 20;
@@ -629,28 +628,65 @@ img {
 
 .settings-modal {
   position: relative;
-  width: 900px;
-  max-height: 90vh;
-  overflow: auto;
-  padding: 6.5rem 5.5rem 4rem;
+  width: min(900px, calc(100vw - 48px));
   border: 0;
-  background: transparent center top / contain no-repeat;
+  background: transparent center center / contain no-repeat;
   box-shadow: none;
 }
 
 .rules-modal {
+  width: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: min(768px, calc(100vh - 120px));
+  margin: 0;
+  padding: 9% 8% 1.9rem;
   background-image: url("../assets/ui/rules-modal.png");
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+.rules-close-button {
+  position: absolute;
+  top: 2%;
+  right: 2%;
+  width: clamp(28px, 3vw, 36px);
+  height: clamp(28px, 3vw, 36px);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 248, 236, 0.3);
+  border-radius: 999px;
+  background: rgba(22, 18, 16, 0.72);
+  color: #f7f0e3;
+  font-size: clamp(1.9rem, 2.8vw, 2.7rem);
+  line-height: 0.8;
+  z-index: 2;
+}
+
+.rules-close-button span {
+  display: block;
+  transform: translateY(-6%);
 }
 
 .bonus-buy-modal {
   width: 800px;
   height: 600px;
+  padding: 9rem 5.5rem 4rem;
   background-image: url("../assets/ui/bonus-buy-modal.png");
 }
 
 .settings-header {
+  position: relative;
+  display: flex;
   justify-content: center;
-  margin-bottom: 1rem;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-bottom: 1.2rem;
   text-align: center;
 }
 
@@ -659,6 +695,7 @@ img {
 }
 
 .settings-header h2 {
+  margin: 0;
   font-size: 3.25rem;
   line-height: 1;
   letter-spacing: 0.04em;
@@ -666,8 +703,8 @@ img {
 
 .close-button {
   position: absolute;
-  top: 3.2rem;
-  right: 3.5rem;
+  top: 0;
+  right: 0;
   padding: 0.45rem 1rem;
   border-radius: 12px;
   border: 1px solid rgba(76, 60, 48, 0.3);
@@ -681,9 +718,127 @@ img {
   gap: 12px;
 }
 
-.rules-modal .modal-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.rules-scroll {
+  width: min(900px, 100%);
+  max-height: min(380px, calc(100vh - 190px));
+  margin: 0 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0.75rem 0 0.2rem;
+}
+
+.rules-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  color: rgba(255, 248, 236, 0.92);
+}
+
+.rules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rules-section h3 {
+  margin: 0;
+  text-align: center;
+  font-size: 2.7rem;
+  line-height: 1;
+}
+
+.rules-intro p,
+.rules-note,
+.rules-bonus-text p,
+.rules-special-text p,
+.rules-paytable-values span {
+  margin: 0;
+  font-size: 1.9rem;
+  line-height: 1.32;
+}
+
+.rules-note {
+  margin-bottom: 0.35rem;
+}
+
+.rules-paytable-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.1rem 1.6rem;
+}
+
+.rules-paytable-card {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
   align-items: start;
+  gap: 0.8rem;
+}
+
+.rules-paytable-symbol,
+.rules-special-image {
+  border: 1px solid rgba(255, 248, 236, 0.18);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.rules-paytable-symbol {
+  width: 8rem;
+  height: 8rem;
+  display: grid;
+  place-items: center;
+}
+
+.rules-paytable-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rules-paytable-values {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.rules-specials {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
+}
+
+.rules-special-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.rules-special-card-wide {
+  grid-template-columns: auto 1fr;
+}
+
+.rules-special-icons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.rules-special-image {
+  width: 5.8rem;
+  height: 5.8rem;
+  object-fit: cover;
+}
+
+.rules-special-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rules-bonus-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .bonus-buy-modal .modal-grid {
@@ -697,6 +852,56 @@ img {
 
 .bonus-buy-modal .close-button {
   display: none;
+}
+
+@media (max-width: 900px) {
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .rules-modal {
+    width: 100%;
+    max-width: none;
+    align-items: center;
+    justify-content: center;
+    height: min(500px, calc(100vh - 96px));
+    margin: 0;
+    padding: 2% 2% 1.25rem;
+  }
+
+  .rules-close-button {
+    top: 1.5%;
+    right: 1.5%;
+  }
+
+  .rules-scroll {
+    max-height: min(360px, calc(100vh - 150px));
+  }
+
+  .settings-header h2 {
+    font-size: 2.5rem;
+  }
+
+  .close-button {
+    font-size: 1.15rem;
+  }
+
+  .rules-intro p,
+  .rules-note,
+  .rules-bonus-text p,
+  .rules-special-text p,
+  .rules-paytable-values span {
+    font-size: 1.45rem;
+  }
+
+  .rules-section h3 {
+    font-size: 2.15rem;
+  }
+
+  .rules-paytable-grid,
+  .rules-specials {
+    grid-template-columns: 1fr;
+  }
 }
 
 .bonus-buy-picker {

@@ -3,7 +3,8 @@ import {
   BET_OPTIONS,
   DEFAULT_BALANCE,
   DEFAULT_PROFILE_ID,
-  SLOT_PROFILES
+  SYMBOL_DEFS,
+  WILD_ICON_BY_MULTIPLIER
 } from "./math/slotConfig.js";
 import {
   buyBonusFromProfile,
@@ -28,6 +29,35 @@ const BONUS_BUY_OPTIONS = [
   { scatterCount: 3, priceMultiplier: 100 },
   { scatterCount: 4, priceMultiplier: 200 },
   { scatterCount: 5, priceMultiplier: 500 }
+];
+const RULES_TITLE_TEXT = "Правила игры";
+const RULES_PAYTABLE_TITLE_TEXT = "Таблица выплат";
+const RULES_BONUS_TITLE_TEXT = "Бонусная игра";
+const RULES_COIN_LABELS = {
+  one: "монет",
+  few: "монет",
+  many: "монет"
+};
+const RULES_PAY_MODE_TEXT = "Способ оплаты. 243 ways. Комбинации считаются по ways.";
+const RULES_PAYTABLE_NOTE_TEXT = "Выплаты расчитаны из размера ставки 1 монета";
+const RULES_WILD_TEXT = [
+  "Это символ Вилд (Wild). Появляется на всех барабанах и бесплатных спинов.",
+  "Заменяет все символы кроме символов Скаттера (Scatter).",
+  "Может иметь случайный множитель от x1 до x5"
+];
+const RULES_SCATTER_TEXT = [
+  "Это символ Скаттер (Scatter).",
+  "Он появляется на всех барабанах"
+];
+const RULES_BONUS_LINES = [
+  "Для активации бонусной игры должно выпасть 3, 4 или 5 Scatter",
+  "3 scatter:",
+  "• 7 фриспинов, • выпадающие wild могут иметь множитель до x2, • максимум 4 sticky wild",
+  "4 scatter:",
+  "• 9 фриспинов, • выпадающие wild могут иметь множитель до x4, • максимум 6 sticky wild",
+  "5 scatter:",
+  "• 13 фриспинов, • выпадающие wild могут иметь множитель до x5, • максимум 9 sticky wild",
+  "Scatter во время бонуса добавляют спины и могут улучшать уровень бонуса."
 ];
 
 function formatNumber(value) {
@@ -167,6 +197,16 @@ function formatBonusScatterLabel(scatterCount) {
   return `${scatterCount} ${scatterCount === 5 ? BONUS_BUY_SCATTER_LABEL_MANY : BONUS_BUY_SCATTER_LABEL_FEW}`;
 }
 
+function formatCoinValue(value) {
+  const normalized = Number(value);
+
+  if (!Number.isFinite(normalized)) {
+    return "0";
+  }
+
+  return normalized.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1").replace(".", ",");
+}
+
 function AssetButton({ shellClassName, artClassName, label, onClick, disabled = false, ariaLabel, children }) {
   return (
     <div className={`asset-button-shell ${shellClassName}${disabled ? " is-disabled" : ""}`}>
@@ -227,6 +267,7 @@ function SlotApp() {
   const profile = getProfile(profileId);
   const bet = BET_OPTIONS[currentBetIndex];
   const paytableRows = getPaytableRows(profileId);
+  const basePaytableRows = paytableRows.filter((row) => row.symbol.kind === "base");
   const speedOption = SPEED_OPTIONS.find((option) => option.id === speedId) ?? SPEED_OPTIONS[0];
   const activeSpinSpeedOption = SPEED_OPTIONS.find((option) => option.id === activeSpinSpeedId) ?? SPEED_OPTIONS[0];
   const currentSpinSpeedOption = spinning ? activeSpinSpeedOption : speedOption;
@@ -1095,132 +1136,74 @@ function SlotApp() {
             aria-modal="true"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="settings-header">
-              <div>
-                <p className="eyebrow">Rules / Settings</p>
-                <h2>{t("ui.rulesTitle")}</h2>
-              </div>
-              <button className="close-button" type="button" onClick={() => setShowSettingsModal(false)}>
-                {t("ui.close")}
-              </button>
-            </div>
+            <button
+              className="rules-close-button"
+              type="button"
+              aria-label={t("ui.close")}
+              onClick={() => setShowSettingsModal(false)}
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
+            <div className="rules-scroll">
+              <div className="rules-layout">
+                <section className="rules-section rules-intro">
+                  <h3>{RULES_TITLE_TEXT}</h3>
+                  <p>{RULES_PAY_MODE_TEXT}</p>
+                </section>
 
-            <div className="modal-grid">
-              <article className="setting-card">
-                <span className="card-label">{t("ui.payMode")}</span>
-                <strong>243 ways</strong>
-                <p>{t("ui.waysDescriptionExtended")}</p>
-              </article>
+                <section className="rules-section">
+                  <h3>{RULES_PAYTABLE_TITLE_TEXT}</h3>
+                  <p className="rules-note">{RULES_PAYTABLE_NOTE_TEXT}</p>
+                  <div className="rules-paytable-grid">
+                    {basePaytableRows.map((row) => (
+                      <article className="rules-paytable-card" key={`rules-${row.symbol.id}`}>
+                        <div className="rules-paytable-symbol">
+                          {row.symbol.icon ? <img className="rules-paytable-image" src={row.symbol.icon} alt={row.symbol.name} /> : null}
+                        </div>
+                        <div className="rules-paytable-values">
+                          <span>3 - {formatCoinValue(row.payouts[3])} {RULES_COIN_LABELS.one}</span>
+                          <span>4 - {formatCoinValue(row.payouts[4])} {RULES_COIN_LABELS.few}</span>
+                          <span>5 - {formatCoinValue(row.payouts[5])} {RULES_COIN_LABELS.many}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
 
-              <article className="setting-card">
-                <span className="card-label">{t("ui.bonusRulesTitle")}</span>
-                <strong>3 / 4 / 5 Scatter</strong>
-                <div className="formatted-rule-text">{renderFormattedRuleText(t("ui.bonusRulesExtended"))}</div>
-              </article>
-
-              <label className="setting-card" htmlFor="modalProfileSelect">
-                <span className="card-label">{t("ui.profileSelect")}</span>
-                <strong>{profile.label}</strong>
-                <select
-                  id="modalProfileSelect"
-                  className="profile-select"
-                  disabled={spinning}
-                  value={profileId}
-                  onChange={(event) => resetSession(event.target.value)}
-                >
-                  {Object.values(SLOT_PROFILES).map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {t("ui.profileOption", { label: option.label, rtp: option.targetRtp })}
-                    </option>
-                  ))}
-                </select>
-                <p>{t("ui.profileResetHint")}</p>
-              </label>
-              <article className="setting-card">
-                <span className="card-label">{t("ui.targetRtp")}</span>
-                <strong>{formatRtpValue(profile.targetRtp)}%</strong>
-                <p>{t("ui.targetRtpTheoryHint")}</p>
-              </article>
-
-              <label className="setting-card" htmlFor="modalAutoSpinSelect">
-                <span className="card-label">{t("ui.autoplay")}</span>
-                <strong>{t("ui.spinsCount", { count: autoSpinCount })}</strong>
-                <select
-                  id="modalAutoSpinSelect"
-                  className="profile-select"
-                  disabled={spinning}
-                  value={autoSpinCount}
-                  onChange={(event) => setAutoSpinCount(Number(event.target.value))}
-                >
-                  {AUTO_SPIN_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {t("ui.autospinsCount", { count: option })}
-                    </option>
-                  ))}
-                </select>
-                <p>{t("ui.autoplayModalHint")}</p>
-              </label>
-
-              <label className="setting-card" htmlFor="modalStopOnBonusSelect">
-                <span className="card-label">{t("ui.stopConditions")}</span>
-                <strong>{stopOnBonus ? t("ui.stopOnBonus") : t("ui.stopOnlyByThreshold")}</strong>
-                <select
-                  id="modalStopOnBonusSelect"
-                  className="profile-select"
-                  disabled={spinning}
-                  value={stopOnBonus ? "on" : "off"}
-                  onChange={(event) => setStopOnBonus(event.target.value === "on")}
-                >
-                  <option value="on">{t("ui.stopAtBonus")}</option>
-                  <option value="off">{t("ui.dontStopAtBonus")}</option>
-                </select>
-                <select
-                  className="profile-select"
-                  disabled={spinning}
-                  value={stopOnBigWin}
-                  onChange={(event) => setStopOnBigWin(Number(event.target.value))}
-                >
-                  {BIG_WIN_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option === 0 ? t("ui.noBigWinStop") : t("ui.stopAtStakeX", { count: option })}
-                    </option>
-                  ))}
-                </select>
-                <p>{t("ui.stopConditionsModalHint")}</p>
-              </label>
-
-              <article className="setting-card">
-                <span className="card-label">{t("ui.paytable")}</span>
-                <div className="paytable">
-                  {paytableRows.map((row) => (
-                    <div className="paytable-row" key={`modal-${row.symbol.id}`}>
-                      <span className="paytable-symbol">{row.symbol.icon ? <img className="paytable-symbol-image" src={row.symbol.icon} alt={row.symbol.name} /> : null}{row.symbol.name}</span>
-                      <span>x3 {row.payoutLabels[3]}</span>
-                      <span>x4 {row.payoutLabels[4]}</span>
-                      <span>x5 {row.payoutLabels[5]}</span>
+                <section className="rules-section rules-specials">
+                  <article className="rules-special-card rules-special-card-wide">
+                    <div className="rules-special-icons">
+                      <img className="rules-special-image" src={SYMBOL_DEFS.wild.icon} alt={SYMBOL_DEFS.wild.name} />
+                      <img className="rules-special-image" src={WILD_ICON_BY_MULTIPLIER[5]} alt="Wild x5" />
                     </div>
-                  ))}
-                </div>
-              </article>
+                    <div className="rules-special-text">
+                      {RULES_WILD_TEXT.map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                  </article>
 
-              <label className="setting-card" htmlFor="modalSpeedSelect">
-                <span className="card-label">{t("ui.gameSpeed")}</span>
-                <strong>{speedOption.label}</strong>
-                <select
-                  id="modalSpeedSelect"
-                  className="profile-select"
-                  disabled={spinning}
-                  value={speedId}
-                  onChange={(event) => setSpeedId(event.target.value)}
-                >
-                  {SPEED_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <p>{t("ui.speedModalHint")}</p>
-              </label>
+                  <article className="rules-special-card">
+                    <div className="rules-special-icons">
+                      <img className="rules-special-image" src={SYMBOL_DEFS.scatter.icon} alt={SYMBOL_DEFS.scatter.name} />
+                    </div>
+                    <div className="rules-special-text">
+                      {RULES_SCATTER_TEXT.map((line) => (
+                        <p key={line}>{line}</p>
+                      ))}
+                    </div>
+                  </article>
+                </section>
+
+                <section className="rules-section">
+                  <h3>{RULES_BONUS_TITLE_TEXT}</h3>
+                  <div className="rules-bonus-text">
+                    {RULES_BONUS_LINES.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                </section>
+              </div>
             </div>
           </section>
         </div>
