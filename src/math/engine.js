@@ -4,14 +4,15 @@ import {
   GRID_ROWS,
   SLOT_PROFILES,
   SYMBOL_DEFS,
-  SYMBOL_ORDER
+  SYMBOL_ORDER,
+  WILD_ICON_BY_MULTIPLIER
 } from "./slotConfig.js";
 
 const BASE_SYMBOL_IDS = SYMBOL_ORDER.filter((symbolId) => SYMBOL_DEFS[symbolId].kind === "base");
 const BONUS_CONFIG_BY_SCATTER_COUNT = {
   3: { spins: 7, wildCountWeights: { 0: 52, 1: 48 }, maxMultiplier: 2, maxStickyWilds: 4 },
   4: { spins: 9, wildCountWeights: { 0: 34, 1: 42, 2: 24 }, maxMultiplier: 5, maxStickyWilds: 6 },
-  5: { spins: 13, wildCountWeights: { 0: 18, 1: 39, 2: 28, 3: 15 }, maxMultiplier: 10, maxStickyWilds: 9 }
+  5: { spins: 13, wildCountWeights: { 0: 18, 1: 39, 2: 28, 3: 15 }, maxMultiplier: 5, maxStickyWilds: 9 }
 };
 const BONUS_EXTRA_SPINS_BY_SCATTER_COUNT = {
   1: 1,
@@ -25,12 +26,7 @@ const WILD_MULTIPLIER_WEIGHTS = [
   { value: 2, weight: 220 },
   { value: 3, weight: 120 },
   { value: 4, weight: 75 },
-  { value: 5, weight: 45 },
-  { value: 6, weight: 28 },
-  { value: 7, weight: 16 },
-  { value: 8, weight: 9 },
-  { value: 9, weight: 5 },
-  { value: 10, weight: 2 }
+  { value: 5, weight: 45 }
 ];
 
 function randomIndex(length, rng = Math.random) {
@@ -686,6 +682,11 @@ export function getPaytableRows(profileId) {
   });
 }
 
+function getWildIcon(multiplier) {
+  const safeMultiplier = Math.max(1, Math.min(5, multiplier ?? 1));
+  return WILD_ICON_BY_MULTIPLIER[safeMultiplier] ?? WILD_ICON_BY_MULTIPLIER[1];
+}
+
 function collectWinningPositions(gridIds, symbolId, reels) {
   const positions = [];
 
@@ -709,6 +710,7 @@ function decorateColumn(columnIds, multiplierColumn = []) {
     const symbol = getSymbol(symbolId);
     return {
       ...symbol,
+      icon: symbol.kind === "wild" ? getWildIcon(multiplierColumn[rowIndex] ?? 1) : symbol.icon,
       multiplier: symbol.kind === "wild" ? (multiplierColumn[rowIndex] ?? 1) : null
     };
   });
