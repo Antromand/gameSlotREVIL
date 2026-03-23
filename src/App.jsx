@@ -1,4 +1,4 @@
-﻿import React, { Component, useEffect, useRef, useState } from "react";
+import React, { Component, useEffect, useRef, useState } from "react";
 import {
   BET_OPTIONS,
   DEFAULT_BALANCE,
@@ -31,6 +31,7 @@ const BONUS_BUY_OPTIONS = [
   { scatterCount: 4, priceMultiplier: 200 },
   { scatterCount: 5, priceMultiplier: 500 }
 ];
+const EXTRA_STOP_SYMBOLS_PER_REEL = 10;
 const RULES_TITLE_TEXT = "Правила игры";
 const RULES_PAYTABLE_TITLE_TEXT = "Таблица выплат";
 const RULES_BONUS_TITLE_TEXT = "Бонусная игра";
@@ -40,10 +41,10 @@ const RULES_COIN_LABELS = {
   many: "монет"
 };
 const RULES_PAY_MODE_TEXT = "Способ оплаты. 243 ways. Комбинации считаются по ways.";
-const RULES_PAYTABLE_NOTE_TEXT = "Выплаты расчитаны из размера ставки 1 монета";
+const RULES_PAYTABLE_NOTE_TEXT = "Выплаты рассчитаны из размера ставки 1 монета";
 const RULES_WILD_TEXT = [
-  "Это символ Вилд (Wild). Появляется на всех барабанах и бесплатных спинов.",
-  "Заменяет все символы кроме символов Скаттера (Scatter).",
+  "Это символ Wild (Wild). Появляется на всех барабанах и бесплатных спинов.",
+  "Заменяет все символы кроме символов Scatter (Scatter).",
   "Может иметь случайный множитель от x1 до x5"
 ];
 const RULES_SCATTER_TEXT = [
@@ -125,6 +126,19 @@ function createSpinningColumnItems(initialColumn, finalColumn, fillerColumns) {
       repeatIndex
     }))
   ));
+}
+
+function extendSpinningColumnItems(stripItems, insertBeforeTailCount, extraSymbols) {
+  if (insertBeforeTailCount <= 0 || extraSymbols.length === 0) {
+    return stripItems;
+  }
+
+  const insertAt = Math.max(0, stripItems.length - insertBeforeTailCount);
+  return [
+    ...stripItems.slice(0, insertAt),
+    ...extraSymbols,
+    ...stripItems.slice(insertAt)
+  ];
 }
 
 function getSpinVisualStyle(speedId) {
@@ -719,12 +733,23 @@ function SlotApp() {
 
     for (let column = 0; column < plannedSpin.grid.length; column += 1) {
       const columnSpinProfile = getColumnSpinProfile(column, spinOption);
+      const extraStopSymbolsCount = column * EXTRA_STOP_SYMBOLS_PER_REEL;
       const totalDuration = columnSpinProfile.totalDuration;
       const fillerColumns = Array.from(
         { length: Math.max(6, Math.ceil(totalDuration / spinOption.stripStepMs)) },
         () => createPreviewGrid(profileId)[column]
       );
-      const stripItems = createSpinningColumnItems(displayGridRef.current[column], plannedSpin.grid[column], fillerColumns);
+      const extraStopSourceColumn = createPreviewGrid(profileId)[column];
+      const extraStopSymbols = Array.from({ length: extraStopSymbolsCount }, (_, extraIndex) => ({
+        symbol: extraStopSourceColumn[extraIndex % extraStopSourceColumn.length],
+        rowIndex: extraIndex % extraStopSourceColumn.length,
+        repeatIndex: fillerColumns.length + 2 + extraIndex
+      }));
+      const stripItems = extendSpinningColumnItems(
+        createSpinningColumnItems(displayGridRef.current[column], plannedSpin.grid[column], fillerColumns),
+        plannedSpin.grid[column].length,
+        extraStopSymbols
+      );
       const offsetSteps = Math.max(0, stripItems.length - plannedSpin.grid[column].length);
 
       nextStripColumns[column] = stripItems;
@@ -736,7 +761,7 @@ function SlotApp() {
       animatedStripStyles[column] = {
         "--reel-stop-distance": `calc(-${offsetSteps} * (var(--symbol-height) + var(--reel-gap)))`,
         transform: "translate3d(0, var(--reel-stop-distance), 0)",
-        animation: `reelSpinTrackAccelerated ${totalDuration}ms both`
+        animation: `reelSpinTrackDecelerating ${totalDuration}ms linear both`
       };
 
       const timer = window.setTimeout(() => {
@@ -1308,6 +1333,8 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
+
 
 
 
