@@ -862,28 +862,41 @@ img {
   .rules-modal {
     width: 100%;
     max-width: none;
-    align-items: center;
-    justify-content: center;
-    height: min(500px, calc(100vh - 96px));
+    aspect-ratio: 3 / 2;
+    align-items: stretch;
+    justify-content: flex-start;
+    height: auto;
     margin: 0;
-    padding: 2% 2% 1.25rem;
+    padding: 8% 2% 5%;
   }
 
   .rules-close-button {
-    top: 1.5%;
-    right: 1.5%;
+    top: 1.8%;
+    right: 1.8%;
   }
 
   .rules-scroll {
-    max-height: min(360px, calc(100vh - 150px));
+    width: 88%;
+    max-height: 63%;
+    margin: 12% auto 0;
+    padding: 0 0.3rem 0 0;
   }
 
-  .settings-header h2 {
-    font-size: 2.5rem;
+  .rules-layout,
+  .rules-section,
+  .rules-paytable-grid,
+  .rules-specials,
+  .rules-special-card,
+  .rules-special-card-wide {
+    width: 100%;
   }
 
-  .close-button {
-    font-size: 1.15rem;
+  .rules-layout {
+    gap: 1rem;
+  }
+
+  .rules-section {
+    gap: 0.6rem;
   }
 
   .rules-intro p,
@@ -891,16 +904,47 @@ img {
   .rules-bonus-text p,
   .rules-special-text p,
   .rules-paytable-values span {
-    font-size: 1.45rem;
+    font-size: clamp(1.5rem, 2.55vw, 1.77rem);
+    line-height: 1.16;
   }
 
   .rules-section h3 {
-    font-size: 2.15rem;
+    font-size: clamp(2.025rem, 3.75vw, 2.775rem);
   }
 
-  .rules-paytable-grid,
+  .rules-paytable-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+  }
+
+  .rules-paytable-card {
+    grid-template-columns: 5.7rem 1fr;
+    gap: 0.45rem;
+  }
+
+  .rules-paytable-symbol {
+    width: 5.7rem;
+    height: 5.7rem;
+  }
+
   .rules-specials {
     grid-template-columns: 1fr;
+    gap: 0.8rem;
+  }
+
+  .rules-special-card,
+  .rules-special-card-wide {
+    grid-template-columns: 6rem 1fr;
+    gap: 0.6rem;
+  }
+
+  .rules-special-icons {
+    gap: 0.35rem;
+  }
+
+  .rules-special-image {
+    width: 6rem;
+    height: 6rem;
   }
 }
 
