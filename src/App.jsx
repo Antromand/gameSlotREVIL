@@ -32,6 +32,44 @@ const BONUS_BUY_OPTIONS = [
   { scatterCount: 5, priceMultiplier: 500 }
 ];
 const EXTRA_STOP_SYMBOLS_PER_REEL = 10;
+const SYMBOL_ASSET_URLS = Array.from(new Set([
+  ...Object.values(SYMBOL_DEFS).map((symbol) => symbol.icon),
+  ...Object.values(WILD_ICON_BY_MULTIPLIER)
+].filter(Boolean)));
+
+function preloadSymbolAsset(src) {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !src) {
+      resolve();
+      return;
+    }
+
+    const image = new window.Image();
+    const finalize = () => resolve();
+
+    image.decoding = "async";
+    image.fetchPriority = "high";
+    image.onload = () => {
+      if (typeof image.decode === "function") {
+        image.decode().catch(() => undefined).finally(finalize);
+        return;
+      }
+
+      finalize();
+    };
+    image.onerror = finalize;
+    image.src = src;
+
+    if (image.complete) {
+      if (typeof image.decode === "function") {
+        image.decode().catch(() => undefined).finally(finalize);
+        return;
+      }
+
+      finalize();
+    }
+  });
+}
 const RULES_TITLE_TEXT = "Правила игры";
 const RULES_PAYTABLE_TITLE_TEXT = "Таблица выплат";
 const RULES_BONUS_TITLE_TEXT = "Бонусная игра";
@@ -239,6 +277,21 @@ function AssetButton({ shellClassName, artClassName, label, onClick, disabled = 
     </div>
   );
 }
+function SymbolArt({ symbol }) {
+  if (!symbol?.icon) {
+    return null;
+  }
+
+  return (
+    <div
+      className="symbol-image-fill"
+      style={{ backgroundImage: `url("${symbol.icon}")` }}
+      role={symbol.name ? "img" : undefined}
+      aria-label={symbol.name || undefined}
+    />
+  );
+}
+
 function SlotApp() {
   const [profileId, setProfileId] = useState(DEFAULT_PROFILE_ID);
   const [balance, setBalance] = useState(DEFAULT_BALANCE);
@@ -261,6 +314,7 @@ function SlotApp() {
   const [showBuyBonusModal, setShowBuyBonusModal] = useState(false);
   const [selectedBonusScatterCount, setSelectedBonusScatterCount] = useState(BONUS_BUY_OPTIONS[0].scatterCount);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [preloadingSymbols, setPreloadingSymbols] = useState(false);
   const [viewportScale, setViewportScale] = useState(DEFAULT_VIEWPORT_SCALE);
   const [spinningColumns, setSpinningColumns] = useState([]);
   const [settlingColumns, setSettlingColumns] = useState([]);
@@ -278,6 +332,8 @@ function SlotApp() {
   const audioContextRef = useRef(null);
   const teasePlayedColumnsRef = useRef(new Set());
   const displayGridRef = useRef(displayGrid);
+  const symbolAssetsReadyRef = useRef(false);
+  const symbolAssetsPromiseRef = useRef(null);
 
   const profile = getProfile(profileId);
   const bet = BET_OPTIONS[currentBetIndex];
@@ -291,10 +347,31 @@ function SlotApp() {
   const totalWays = waysWins.reduce((sum, entry) => sum + entry.ways, 0);
   const selectedBonusOption = BONUS_BUY_OPTIONS.find((option) => option.scatterCount === selectedBonusScatterCount) ?? BONUS_BUY_OPTIONS[0];
   const selectedBonusPrice = bet * selectedBonusOption.priceMultiplier;
+  const controlsLocked = spinning || preloadingSymbols;
+
+  function ensureSymbolAssetsReady() {
+    if (symbolAssetsReadyRef.current) {
+      return Promise.resolve();
+    }
+
+    if (!symbolAssetsPromiseRef.current) {
+      symbolAssetsPromiseRef.current = Promise.all(SYMBOL_ASSET_URLS.map(preloadSymbolAsset))
+        .catch(() => undefined)
+        .then(() => {
+          symbolAssetsReadyRef.current = true;
+        });
+    }
+
+    return symbolAssetsPromiseRef.current;
+  }
 
   useEffect(() => {
     displayGridRef.current = displayGrid;
   }, [displayGrid]);
+
+  useEffect(() => {
+    ensureSymbolAssetsReady();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -443,7 +520,7 @@ function SlotApp() {
       return;
     }
 
-    if (spinning) {
+    if (controlsLocked) {
       return;
     }
 
@@ -482,14 +559,21 @@ function SlotApp() {
     };
   }, [autoSpinsRemaining, spinning, balance, bet]);
 
-  function handleSpin() {
-    if (spinning) {
+  async function handleSpin() {
+    if (controlsLocked) {
       return;
     }
 
     if (balance < bet) {
       setStatusText(t("status.noFundsSpin"));
       return;
+    }
+
+    setPreloadingSymbols(true);
+    try {
+      await ensureSymbolAssetsReady();
+    } finally {
+      setPreloadingSymbols(false);
     }
 
     const nextSpinSpeedOption = speedOption;
@@ -527,7 +611,7 @@ function SlotApp() {
     handleBuyBonus(selectedBonusOption.scatterCount, selectedBonusOption.priceMultiplier);
   }
 
-  function handleBuyBonus(scatterCount, priceMultiplier) {
+  async function handleBuyBonus(scatterCount, priceMultiplier) {
     if (spinning) {
       return;
     }
@@ -537,6 +621,13 @@ function SlotApp() {
     if (balance < purchaseCost) {
       setStatusText(t("status.noFundsBonusBuy"));
       return;
+    }
+
+    setPreloadingSymbols(true);
+    try {
+      await ensureSymbolAssetsReady();
+    } finally {
+      setPreloadingSymbols(false);
     }
 
     const nextSpinSpeedOption = speedOption;
@@ -944,6 +1035,19 @@ function SlotApp() {
           transform: `translate(-50%, -50%) scale(${viewportScale})`
         }}
       >
+      <div className="symbol-asset-cache" aria-hidden="true">
+        {SYMBOL_ASSET_URLS.map((src) => (
+          <img
+            className="symbol-asset-cache-image"
+            key={src}
+            src={src}
+            alt=""
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+          />
+        ))}
+      </div>
       <section className="slot-stage">
         <header className="stage-header">
           <div>
@@ -1001,7 +1105,9 @@ function SlotApp() {
                         style={{ top: `calc(${entry.row} * (var(--symbol-height) + var(--reel-gap)))` }}
                       >
                         <div className="symbol-face">
-                          <div className="symbol-icon">{entry.symbol.icon ? <img className="symbol-image" src={entry.symbol.icon} alt={entry.symbol.name} /> : null}</div>
+                          <div className="symbol-icon">
+                            <SymbolArt symbol={entry.symbol} />
+                          </div>
                         </div>
                       </article>
                     ))}
@@ -1029,7 +1135,9 @@ function SlotApp() {
                         key={`${cellKey}-${repeatIndex}`}
                       >
                         <div className="symbol-face">
-                          <div className="symbol-icon">{symbol.icon ? <img className="symbol-image" src={symbol.icon} alt={symbol.name} /> : null}</div>
+                          <div className="symbol-icon">
+                            <SymbolArt symbol={symbol} />
+                          </div>
                         </div>
                       </article>
                     );
@@ -1067,6 +1175,7 @@ function SlotApp() {
             shellClassName="bonus-buy-button"
             artClassName="bonus-buy-button-art"
             label={t("ui.buyBonus")}
+            disabled={controlsLocked}
             onClick={openBuyBonusModal}
           >
             <span className="bonus-buy-button-label">{t("ui.buyBonus")}</span>
@@ -1112,7 +1221,7 @@ function SlotApp() {
             shellClassName="bet-modifier bet-modifier-decrease"
             artClassName="bet-modifier-art"
             label="Decrease bet"
-            disabled={spinning || currentBetIndex === 0}
+            disabled={controlsLocked || currentBetIndex === 0}
             onClick={() => setCurrentBetIndex((value) => value - 1)}
           />
 
@@ -1120,7 +1229,7 @@ function SlotApp() {
             shellClassName="bet-modifier bet-modifier-increase"
             artClassName="bet-modifier-art"
             label="Increase bet"
-            disabled={spinning || currentBetIndex === BET_OPTIONS.length - 1}
+            disabled={controlsLocked || currentBetIndex === BET_OPTIONS.length - 1}
             onClick={() => setCurrentBetIndex((value) => value + 1)}
           />
 
@@ -1128,7 +1237,7 @@ function SlotApp() {
             shellClassName="spin-button"
             artClassName="spin-button-art"
             label={t("ui.spin")}
-            disabled={spinning || balance < bet}
+            disabled={controlsLocked || balance < bet}
             onClick={handleSpin}
           />
         </section>
@@ -1276,7 +1385,7 @@ function SlotApp() {
               <button
                 className="bonus-buy-action bonus-buy-confirm"
                 type="button"
-                disabled={spinning || balance < selectedBonusPrice}
+                disabled={controlsLocked || balance < selectedBonusPrice}
                 onClick={confirmSelectedBonusBuy}
               >
                 {BONUS_BUY_CONFIRM_TEXT}

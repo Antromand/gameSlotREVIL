@@ -231,18 +231,33 @@ img {
   place-items: center;
 }
 
-.symbol-image {
+.symbol-image-fill {
   width: 100%;
   height: calc(100% - 4px);
-  object-fit: contain;
-  object-position: center top;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: contain;
   image-rendering: auto;
   backface-visibility: hidden;
 }
 
+.symbol-asset-cache {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
 
+.symbol-asset-cache-image {
+  width: 1px;
+  height: 1px;
+  display: block;
+}
 
 .bonus-badge {
+
   position: absolute;
   top: -2%;
   left: 50%;
