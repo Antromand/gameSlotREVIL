@@ -4,9 +4,8 @@ import {
   GRID_ROWS,
   SLOT_PROFILES,
   SYMBOL_DEFS,
-  SYMBOL_ORDER,
-  WILD_ICON_BY_MULTIPLIER
-} from "./slotConfig.js";
+  SYMBOL_ORDER
+} from "./slotData.js";
 
 const BASE_SYMBOL_IDS = SYMBOL_ORDER.filter((symbolId) => SYMBOL_DEFS[symbolId].kind === "base");
 const BONUS_CONFIG_BY_SCATTER_COUNT = {
@@ -682,11 +681,6 @@ export function getPaytableRows(profileId) {
   });
 }
 
-function getWildIcon(multiplier) {
-  const safeMultiplier = Math.max(1, Math.min(5, multiplier ?? 1));
-  return WILD_ICON_BY_MULTIPLIER[safeMultiplier] ?? WILD_ICON_BY_MULTIPLIER[1];
-}
-
 function collectWinningPositions(gridIds, symbolId, reels) {
   const positions = [];
 
@@ -710,7 +704,6 @@ function decorateColumn(columnIds, multiplierColumn = []) {
     const symbol = getSymbol(symbolId);
     return {
       ...symbol,
-      icon: symbol.kind === "wild" ? getWildIcon(multiplierColumn[rowIndex] ?? 1) : symbol.icon,
       multiplier: symbol.kind === "wild" ? (multiplierColumn[rowIndex] ?? 1) : null
     };
   });

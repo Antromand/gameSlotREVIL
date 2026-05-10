@@ -1,5 +1,5 @@
 import { spinFromProfile } from "../src/math/engine.js";
-import { BET_OPTIONS, DEFAULT_PROFILE_ID, SLOT_PROFILES } from "../src/math/slotConfig.js";
+import { BET_OPTIONS, DEFAULT_PROFILE_ID, SLOT_PROFILES } from "../src/math/slotData.js";
 
 const DISTRIBUTION_BUCKETS = [
   { label: "0x", min: 0, max: 0 },

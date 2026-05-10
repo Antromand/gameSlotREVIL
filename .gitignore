@@ -9,6 +9,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+vite-dev*.log
+
+.playwright-mcp/
+after-*.png
+report.html
+report-*.png
 
 .DS_Store
 Thumbs.db

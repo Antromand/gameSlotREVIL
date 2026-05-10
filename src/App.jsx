@@ -32,6 +32,14 @@ const BONUS_BUY_OPTIONS = [
   { scatterCount: 5, priceMultiplier: 500 }
 ];
 const EXTRA_STOP_SYMBOLS_PER_REEL = 10;
+const FOCUSABLE_MODAL_SELECTOR = [
+  "button:not(:disabled)",
+  "[href]",
+  "input:not(:disabled)",
+  "select:not(:disabled)",
+  "textarea:not(:disabled)",
+  "[tabindex]:not([tabindex='-1'])"
+].join(",");
 const SYMBOL_ASSET_URLS = Array.from(new Set([
   ...Object.values(SYMBOL_DEFS).map((symbol) => symbol.icon),
   ...Object.values(WILD_ICON_BY_MULTIPLIER)
@@ -81,8 +89,8 @@ const RULES_COIN_LABELS = {
 const RULES_PAY_MODE_TEXT = "Способ оплаты. 243 ways. Комбинации считаются по ways.";
 const RULES_PAYTABLE_NOTE_TEXT = "Выплаты рассчитаны из размера ставки 1 монета";
 const RULES_WILD_TEXT = [
-  "Это символ Wild (Wild). Появляется на всех барабанах и бесплатных спинов.",
-  "Заменяет все символы кроме символов Scatter (Scatter).",
+  "Это символ Wild. Появляется в базовой игре, респинах и бесплатных спинах.",
+  "Заменяет все символы, кроме Scatter.",
   "Может иметь случайный множитель от x1 до x5"
 ];
 const RULES_SCATTER_TEXT = [
@@ -94,7 +102,7 @@ const RULES_BONUS_LINES = [
   "3 scatter:",
   "• 7 фриспинов, • выпадающие wild могут иметь множитель до x2, • максимум 4 sticky wild",
   "4 scatter:",
-  "• 9 фриспинов, • выпадающие wild могут иметь множитель до x4, • максимум 6 sticky wild",
+  "• 9 фриспинов, • выпадающие wild могут иметь множитель до x5, • максимум 6 sticky wild",
   "5 scatter:",
   "• 13 фриспинов, • выпадающие wild могут иметь множитель до x5, • максимум 9 sticky wild",
   "Scatter во время бонуса добавляют спины и могут улучшать уровень бонуса."
@@ -250,6 +258,24 @@ function formatBonusScatterLabel(scatterCount) {
   return `${scatterCount} ${scatterCount === 5 ? BONUS_BUY_SCATTER_LABEL_MANY : BONUS_BUY_SCATTER_LABEL_FEW}`;
 }
 
+function getModalFocusableElements(modal) {
+  return Array.from(modal.querySelectorAll(FOCUSABLE_MODAL_SELECTOR))
+    .filter((element) => element.offsetParent !== null || element === document.activeElement);
+}
+
+function getSymbolIcon(symbol) {
+  if (!symbol?.id) {
+    return "";
+  }
+
+  if (symbol.kind === "wild") {
+    const safeMultiplier = Math.max(1, Math.min(5, symbol.multiplier ?? 1));
+    return WILD_ICON_BY_MULTIPLIER[safeMultiplier] ?? WILD_ICON_BY_MULTIPLIER[1];
+  }
+
+  return SYMBOL_DEFS[symbol.id]?.icon ?? symbol.icon ?? "";
+}
+
 function formatCoinValue(value) {
   const normalized = Number(value);
 
@@ -278,14 +304,16 @@ function AssetButton({ shellClassName, artClassName, label, onClick, disabled = 
   );
 }
 function SymbolArt({ symbol }) {
-  if (!symbol?.icon) {
+  const icon = getSymbolIcon(symbol);
+
+  if (!icon) {
     return null;
   }
 
   return (
     <div
       className="symbol-image-fill"
-      style={{ backgroundImage: `url("${symbol.icon}")` }}
+      style={{ backgroundImage: `url("${icon}")` }}
       role={symbol.name ? "img" : undefined}
       aria-label={symbol.name || undefined}
     />
@@ -395,6 +423,80 @@ function SlotApp() {
       window.removeEventListener("resize", updateViewportScale);
     };
   }, []);
+
+  useEffect(() => {
+    const activeModal = showSettingsModal
+      ? document.querySelector(".rules-modal")
+      : showBuyBonusModal
+        ? document.querySelector(".bonus-buy-modal")
+        : null;
+
+    if (!activeModal) {
+      return undefined;
+    }
+
+    const previouslyFocusedElement = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusTimer = window.setTimeout(() => {
+      const [firstFocusable] = getModalFocusableElements(activeModal);
+      firstFocusable?.focus();
+    }, 0);
+
+    function closeActiveModal() {
+      if (showSettingsModal) {
+        setShowSettingsModal(false);
+      }
+
+      if (showBuyBonusModal) {
+        setShowBuyBonusModal(false);
+      }
+    }
+
+    function handleModalKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeActiveModal();
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusableElements = getModalFocusableElements(activeModal);
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+        return;
+      }
+
+      if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleModalKeyDown);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleModalKeyDown);
+
+      if (previouslyFocusedElement?.isConnected) {
+        previouslyFocusedElement.focus();
+      }
+    };
+  }, [showSettingsModal, showBuyBonusModal]);
 
   function clearSpinTimers() {
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
@@ -998,12 +1100,12 @@ function SlotApp() {
 
     if (hadAutoPlay && finalAutoSpinsRemaining === 0) {
       setStatusText(t("status.autoCompleted"));
-      setRoundSummary(t("status.use243Ways"));
+      setRoundSummary("");
       return;
     }
 
     setStatusText(t("status.noWin"));
-    setRoundSummary(t("status.use243Ways"));
+    setRoundSummary("");
   }
 
   const winningCells = new Set();
@@ -1166,8 +1268,8 @@ function SlotApp() {
           <AssetButton
             shellClassName={`sound-button${soundEnabled ? " is-on" : " is-off"}`}
             artClassName="sound-button-art"
-            label={soundEnabled ? "Sound on" : "Sound off"}
-            ariaLabel={soundEnabled ? "Sound on" : "Sound off"}
+            label={soundEnabled ? "Звук включён" : "Звук выключен"}
+            ariaLabel={soundEnabled ? "Звук включён" : "Звук выключен"}
             onClick={toggleSound}
           />
 
@@ -1220,7 +1322,7 @@ function SlotApp() {
           <AssetButton
             shellClassName="bet-modifier bet-modifier-decrease"
             artClassName="bet-modifier-art"
-            label="Decrease bet"
+            label="Уменьшить ставку"
             disabled={controlsLocked || currentBetIndex === 0}
             onClick={() => setCurrentBetIndex((value) => value - 1)}
           />
@@ -1228,7 +1330,7 @@ function SlotApp() {
           <AssetButton
             shellClassName="bet-modifier bet-modifier-increase"
             artClassName="bet-modifier-art"
-            label="Increase bet"
+            label="Увеличить ставку"
             disabled={controlsLocked || currentBetIndex === BET_OPTIONS.length - 1}
             onClick={() => setCurrentBetIndex((value) => value + 1)}
           />
@@ -1261,6 +1363,7 @@ function SlotApp() {
         </section>
 
       </footer>
+      </div>
 
       {showSettingsModal ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setShowSettingsModal(false)}>
@@ -1290,18 +1393,22 @@ function SlotApp() {
                   <h3>{RULES_PAYTABLE_TITLE_TEXT}</h3>
                   <p className="rules-note">{RULES_PAYTABLE_NOTE_TEXT}</p>
                   <div className="rules-paytable-grid">
-                    {basePaytableRows.map((row) => (
-                      <article className="rules-paytable-card" key={`rules-${row.symbol.id}`}>
-                        <div className="rules-paytable-symbol">
-                          {row.symbol.icon ? <img className="rules-paytable-image" src={row.symbol.icon} alt={row.symbol.name} /> : null}
-                        </div>
-                        <div className="rules-paytable-values">
-                          <span>3 - {formatCoinValue(row.payouts[3])} {RULES_COIN_LABELS.one}</span>
-                          <span>4 - {formatCoinValue(row.payouts[4])} {RULES_COIN_LABELS.few}</span>
-                          <span>5 - {formatCoinValue(row.payouts[5])} {RULES_COIN_LABELS.many}</span>
-                        </div>
-                      </article>
-                    ))}
+                    {basePaytableRows.map((row) => {
+                      const symbolIcon = getSymbolIcon(row.symbol);
+
+                      return (
+                        <article className="rules-paytable-card" key={`rules-${row.symbol.id}`}>
+                          <div className="rules-paytable-symbol">
+                            {symbolIcon ? <img className="rules-paytable-image" src={symbolIcon} alt={row.symbol.name} /> : null}
+                          </div>
+                          <div className="rules-paytable-values">
+                            <span>3 - {formatCoinValue(row.payouts[3])} {RULES_COIN_LABELS.one}</span>
+                            <span>4 - {formatCoinValue(row.payouts[4])} {RULES_COIN_LABELS.few}</span>
+                            <span>5 - {formatCoinValue(row.payouts[5])} {RULES_COIN_LABELS.many}</span>
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                 </section>
 
@@ -1394,7 +1501,6 @@ function SlotApp() {
           </section>
         </div>
       ) : null}
-      </div>
     </main>
   );
 }
